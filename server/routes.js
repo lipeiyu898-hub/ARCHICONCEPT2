@@ -33,13 +33,24 @@ apiRouter.get("/env-check", (_req, res) => {
     amap: {
       webServiceConfigured: Boolean(config.amapWebServiceKey),
       webServiceKey: mask(config.amapWebServiceKey),
+      restBaseUrl: config.amapRestBaseUrl,
       jsConfigured: Boolean(config.amapJsKey),
-      jsKey: mask(config.amapJsKey)
+      jsKey: mask(config.amapJsKey),
+      securityJsCodeConfigured: Boolean(config.amapSecurityJsCode),
+      securityJsCode: mask(config.amapSecurityJsCode)
     },
     caseSearch: {
       tavilyConfigured: Boolean(config.tavilyApiKey),
       serpApiConfigured: Boolean(config.serpApiKey)
     }
+  });
+});
+
+apiRouter.get("/amap/browser-config", (_req, res) => {
+  res.json({
+    ok: Boolean(config.amapJsKey),
+    jsKey: config.amapJsKey,
+    securityJsCode: config.amapSecurityJsCode
   });
 });
 
