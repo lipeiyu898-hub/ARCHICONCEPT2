@@ -1,0 +1,14 @@
+.env
+node_modules/
+dist/
+*.log
+server.log
+server.err.log
+npm-debug.log*
+.codex-server.err
+.codex-server.out
+api-server.err
+api-server.out
+dev-server.err
+dev-server.out
+.DS_Store
