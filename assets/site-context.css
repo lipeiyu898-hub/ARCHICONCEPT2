@@ -1213,11 +1213,14 @@ main:has(#id-section-a) {
   --type-status-line: 1.4;
   --type-color-primary: #1a1a1a;
   --type-color-secondary: #666662;
-  --type-color-helper: #858580;
-  --type-color-placeholder: #aaa9a4;
-  --type-color-caption: #989893;
-  --type-color-status: #6f6f6a;
+  --type-color-helper: #70706c;
+  --type-color-placeholder: #767672;
+  --type-color-caption: #73736f;
+  --type-color-status: #666662;
   color: var(--type-color-primary);
+  font-family:
+    Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
+    ui-sans-serif, system-ui, sans-serif;
 }
 
 main:has(#id-section-a) > div:first-child h1 {
@@ -1272,8 +1275,9 @@ main:has(#id-section-a) #grid-container label {
 main:has(#id-section-a) .type-en {
   margin-left: 2px;
   color: var(--type-color-caption);
-  font-size: 0.88em;
+  font-size: 10px;
   font-weight: 500;
+  line-height: 1.4;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -1294,6 +1298,14 @@ main:has(#id-section-a) #grid-container textarea::placeholder {
   font-size: var(--type-input-size);
   font-weight: 400;
   opacity: 1;
+}
+
+main:has(#id-section-a) #grid-container input:focus,
+main:has(#id-section-a) #grid-container select:focus,
+main:has(#id-section-a) #grid-container textarea:focus {
+  border-color: #74746f;
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(26 26 26 / 8%);
 }
 
 main:has(#id-section-a) #grid-container select:invalid {
@@ -1448,15 +1460,57 @@ main:has(#id-section-a) #input-review-column [class*="text-[10px]"] {
 
 main:has(#id-section-a) #input-review-column .assistant-hint-label {
   color: var(--type-color-caption);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
 }
 
 main:has(#id-section-a) #input-review-column .assistant-hint-copy {
   color: var(--type-color-helper);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 400;
   line-height: 1.65;
   letter-spacing: 0;
+}
+
+main:has(#id-section-a) #input-review-column .assistant-ip-host {
+  position: relative !important;
+  top: auto !important;
+  margin-top: 0;
+}
+
+main:has(#id-section-a) #input-review-column .assistant-ip-character {
+  right: -90px;
+  width: 250px;
+}
+
+@media (max-width: 1499px) {
+  main:has(#id-section-a) #input-review-column .assistant-ip-character {
+    right: -48px;
+    width: 210px;
+  }
+}
+
+@media (max-width: 1380px) {
+  main:has(#id-section-a) #input-review-column .assistant-ip-character {
+    right: -24px;
+    width: 180px;
+  }
+}
+
+@media (max-width: 1100px) {
+  main:has(#id-section-a) > div:first-child {
+    align-items: flex-start;
+  }
+
+  main:has(#id-section-a) > div:first-child > div:last-child {
+    gap: 8px;
+  }
+
+  main:has(#id-section-a) > div:first-child > div:last-child button {
+    padding-inline: 12px;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
 }
