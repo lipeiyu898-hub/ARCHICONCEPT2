@@ -4,6 +4,594 @@ if (!sourceLink) {
   throw new Error("ARCHICONCEPT app source link is missing.");
 }
 
+const PREFLIGHT_FIELD_META = {
+  name: ["项目名称", "当前为空", "无法建立项目身份与问题归属。", "id-section-a"],
+  type: ["建筑类型", "未选择", "无法匹配对应建筑类型的规范与典型问题。", "id-section-a"],
+  location: ["项目地点", "未填写且场地定位未确认", "无法判断场地背景与外部约束。", "id-section-a"],
+  area: ["用地面积", "未填写或无有效红线面积", "无法进行容量、密度与体量判断。", "id-section-a"],
+  programAndSite: ["功能需求与场地问题", "均未填写", "无法识别核心任务、场地矛盾和设计风险。", "id-section-c"],
+  far: ["容积率", "未填写", "可能影响开发强度与容量判断。", "id-section-b"],
+  gfa: ["总建筑面积", "未填写", "可能影响容量判断、功能分配和体量推导。", "id-section-b"],
+  height: ["建筑高度", "未填写", "可能影响高度控制、层级组织和城市界面判断。", "id-section-b"],
+  floors: ["层数范围", "未填写", "可能影响垂直功能组织和交通核判断。", "id-section-b"],
+  redLineArea: ["红线面积", "未确认", "可能影响边界退让、容量和可建设范围判断。", "id-section-b"],
+  siteEntrance: ["场地入口", "未标注", "可能影响人车分流、后勤组织和主要到达面判断。", "id-section-c"],
+  contextAnalysis: ["周边分析", "未完成", "可能遗漏交通、公共服务、敏感点与环境关系。", "id-section-c"],
+  planningRestrictions: ["规划限制条件", "未填写", "可能遗漏退界、日照、消防或城市设计控制。", "id-section-c"],
+  parking: ["停车条件", "未说明", "可能影响车行入口、地下空间和落客组织。", "id-section-c"],
+  pedestrianFlow: ["人流条件", "未说明", "可能影响公共入口、流线分级与空间开放度。", "id-section-c"],
+  accessConditions: ["出入口条件", "未说明", "可能影响主次入口、后勤和消防组织。", "id-section-c"],
+  setback: ["退界条件", "未说明", "可能影响可建范围、沿街界面和消防间距。", "id-section-c"]
+};
+
+const AREA_UNIT_PATTERN = "ha|公顷|㎡|m²|m2|平方米";
+
+const parseAreaValue = (value) => {
+  const original = String(value ?? "").trim();
+  if (!original) {
+    return { empty: true, valid: false, values: [], value: null, max: null };
+  }
+
+  const text = original
+    .replace(/,/g, "")
+    .replace(/\s+/g, "")
+    .replace(/平方公尺/gi, "㎡");
+  const match = text.match(
+    new RegExp(
+      `^([+-]?(?:\\d+\\.?\\d*|\\.\\d+))(${AREA_UNIT_PATTERN})?(?:[–—~至到-]([+-]?(?:\\d+\\.?\\d*|\\.\\d+))(${AREA_UNIT_PATTERN})?)?$`,
+      "i"
+    )
+  );
+
+  if (!match) {
+    return { empty: false, valid: false, values: [], value: null, max: null };
+  }
+
+  const sharedUnit = match[4] || match[2] || "㎡";
+  const convert = (number, unit) => {
+    const normalizedUnit = String(unit || sharedUnit).toLowerCase();
+    const multiplier =
+      normalizedUnit === "ha" || normalizedUnit === "公顷" ? 10000 : 1;
+    return Number(number) * multiplier;
+  };
+  const values = [convert(match[1], match[2])];
+  if (match[3] !== undefined) values.push(convert(match[3], match[4]));
+
+  if (values.some((number) => !Number.isFinite(number))) {
+    return { empty: false, valid: false, values: [], value: null, max: null };
+  }
+
+  return {
+    empty: false,
+    valid: true,
+    values,
+    value: Math.min(...values),
+    max: Math.max(...values)
+  };
+};
+
+const formatCompactNumber = (value, maximumFractionDigits = 2) =>
+  new Intl.NumberFormat("zh-CN", {
+    maximumFractionDigits,
+    useGrouping: true
+  }).format(value);
+
+const serializeAreaM2 = (value) => {
+  const parsed = parseAreaValue(value);
+  if (!parsed.valid) return String(value ?? "").trim();
+  return parsed.values
+    .map((number) =>
+      Number.isInteger(number)
+        ? String(number)
+        : String(Number(number.toFixed(4)))
+    )
+    .join("–");
+};
+
+const formatAreaM2 = (value, fallback = "") => {
+  const parsed = parseAreaValue(value);
+  if (!parsed.valid) return fallback || String(value ?? "").trim();
+
+  const squareMetres = parsed.values
+    .map((number) => formatCompactNumber(number))
+    .join("–");
+  const shouldShowHectares = parsed.values.every(
+    (number) => Math.abs(number) >= 10000
+  );
+
+  if (!shouldShowHectares) return `${squareMetres}㎡`;
+
+  const hectares = parsed.values
+    .map((number) => formatCompactNumber(number / 10000, 4))
+    .join("–");
+  return `${hectares} 公顷 / ${squareMetres}㎡`;
+};
+
+window.__ARCHICONCEPT_PARSE_AREA__ = parseAreaValue;
+window.__ARCHICONCEPT_SERIALIZE_AREA__ = serializeAreaM2;
+window.__ARCHICONCEPT_FORMAT_AREA__ = formatAreaM2;
+
+const makePreflightItem = (key, overrides = {}) => {
+  const [field, state, impact, section] = PREFLIGHT_FIELD_META[key] || [
+    key,
+    "需要核验",
+    "可能影响后续问题识别。",
+    "id-section-a"
+  ];
+  return { key, field, state, impact, section, ...overrides };
+};
+
+const parseStrictNumber = (value) => {
+  const text = String(value ?? "").trim().replace(/,/g, "");
+  if (!text) return { empty: true, valid: false, value: null };
+  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(text)) {
+    return { empty: false, valid: false, value: null };
+  }
+  return { empty: false, valid: true, value: Number(text) };
+};
+
+const parseFloorNumbers = (value) => {
+  const text = String(value ?? "").trim();
+  if (!text) return { empty: true, valid: false, values: [] };
+  const normalized = text.replace(/(\d)\s*[-–—~至到]\s*(\d)/g, "$1,$2");
+  const matches = normalized.match(/[+-]?\d+(?:\.\d+)?/g) || [];
+  return {
+    empty: false,
+    valid: matches.length > 0,
+    values: matches.map(Number).filter(Number.isFinite)
+  };
+};
+
+window.__ARCHICONCEPT_BUILD_INPUT_PREFLIGHT__ = ({
+  brief = {},
+  sitePackage = null,
+  locationConfirmed = false,
+  boundaryStatus = "未绘制",
+  entranceCount = 0,
+  contextStatus = "未开始"
+}) => {
+  const blocking = [];
+  const warning = [];
+  const invalid = [];
+  const boundaryArea = Number(sitePackage?.boundary?.areaM2 || 0);
+  const hasValidBoundary =
+    boundaryStatus === "已确认" &&
+    Number.isFinite(boundaryArea) &&
+    boundaryArea > 0;
+
+  if (!String(brief.name || "").trim()) blocking.push(makePreflightItem("name"));
+  if (!String(brief.type || "").trim()) blocking.push(makePreflightItem("type"));
+  if (!String(brief.location || "").trim() && !locationConfirmed) {
+    blocking.push(makePreflightItem("location"));
+  }
+  if (
+    !String(brief.needs || "").trim() &&
+    !String(brief.siteCondition || "").trim()
+  ) {
+    blocking.push(makePreflightItem("programAndSite"));
+  }
+
+  const numericFields = [
+    ["area", "用地面积", "㎡", "id-section-a"],
+    ["gfa", "总建筑面积", "㎡", "id-section-b"],
+    ["buildableArea", "红线面积", "㎡", "id-section-b"],
+    ["far", "容积率", "", "id-section-b"],
+    ["height", "建筑高度", "m", "id-section-b"],
+    ["density", "建筑密度", "%", "id-section-b"],
+    ["greenery", "绿化率", "%", "id-section-b"]
+  ];
+  const parsed = {};
+
+  numericFields.forEach(([key, field, unit, section]) => {
+    const result = ["area", "gfa", "buildableArea"].includes(key)
+      ? parseAreaValue(brief[key])
+      : parseStrictNumber(brief[key]);
+    parsed[key] = result;
+    if (!result.empty && !result.valid) {
+      invalid.push({
+        key,
+        field,
+        state: `当前值无法识别为数字${unit ? `（${unit}）` : ""}`,
+        impact: "系统无法可靠计算相关指标，请修正后继续。",
+        section,
+        severity: "blocking"
+      });
+    }
+  });
+
+  const floorResult = parseFloorNumbers(brief.floors);
+  if (!floorResult.empty && !floorResult.valid) {
+    invalid.push({
+      key: "floors",
+      field: "层数范围",
+      state: "当前值未包含可识别的层数",
+      impact: "系统无法判断垂直规模和交通组织，请修正后继续。",
+      section: "id-section-b",
+      severity: "blocking"
+    });
+  }
+
+  if (!hasValidBoundary) {
+    if (parsed.area.empty) {
+      blocking.push(makePreflightItem("area"));
+    } else if (parsed.area.valid && parsed.area.value <= 0) {
+      invalid.push({
+        key: "area",
+        field: "用地面积",
+        state: `当前值为 ${parsed.area.value}㎡`,
+        impact: "用地面积必须大于 0，无法据此进行容量判断。",
+        section: "id-section-a",
+        severity: "blocking"
+      });
+    }
+  } else if (parsed.area.valid && parsed.area.value <= 0) {
+    invalid.push({
+      key: "area",
+      field: "用地面积",
+      state: `当前值为 ${parsed.area.value}㎡`,
+      impact: "已填写的用地面积无效，请删除错误值或填写正确面积。",
+      section: "id-section-a",
+      severity: "blocking"
+    });
+  }
+
+  const addBlockingRange = (key, field, value, unit, impact, section = "id-section-b") => {
+    invalid.push({
+      key,
+      field,
+      state: `当前值为 ${value}${unit}`,
+      impact,
+      section,
+      severity: "blocking"
+    });
+  };
+  const addWarningRange = (key, field, value, unit, impact, section = "id-section-b") => {
+    invalid.push({
+      key,
+      field,
+      state: `当前值为 ${value}${unit}`,
+      impact,
+      section,
+      severity: "warning"
+    });
+  };
+
+  if (parsed.area.valid && parsed.area.value > 0 && parsed.area.value < 10) {
+    addWarningRange("area", "用地面积", parsed.area.value, "㎡", "面积非常小，请确认单位或数值是否正确。", "id-section-a");
+  }
+  if (parsed.area.valid && parsed.area.max > 10000000) {
+    addWarningRange("area", "用地面积", parsed.area.max, "㎡", "面积非常大，请确认是否误用了平方米以外的单位。", "id-section-a");
+  }
+  if (parsed.gfa.valid && parsed.gfa.value < 0) {
+    addBlockingRange("gfa", "总建筑面积", parsed.gfa.value, "㎡", "总建筑面积不能小于 0。");
+  }
+  if (parsed.buildableArea.valid && parsed.buildableArea.value < 0) {
+    addBlockingRange("buildableArea", "红线面积", parsed.buildableArea.value, "㎡", "红线面积不能小于 0。");
+  }
+  if (parsed.far.valid && parsed.far.value < 0) {
+    addBlockingRange("far", "容积率", parsed.far.value, "", "容积率不能小于 0。");
+  } else if (parsed.far.valid && parsed.far.value > 20) {
+    addWarningRange("far", "容积率", parsed.far.value, "", "容积率非常高，可能影响体量、消防和城市空间判断。");
+  }
+  if (parsed.height.valid && parsed.height.value < 0) {
+    addBlockingRange("height", "建筑高度", parsed.height.value, "m", "建筑高度不能小于 0。");
+  } else if (parsed.height.valid && parsed.height.value > 1000) {
+    addWarningRange("height", "建筑高度", parsed.height.value, "m", "高度非常规，请确认单位或项目类型。");
+  }
+  if (floorResult.valid) {
+    const minFloor = Math.min(...floorResult.values);
+    const maxFloor = Math.max(...floorResult.values);
+    if (minFloor < 0) {
+      addBlockingRange("floors", "层数范围", minFloor, "层", "层数不能小于 0。");
+    } else if (maxFloor > 300) {
+      addWarningRange("floors", "层数范围", maxFloor, "层", "层数非常规，请确认是否输入正确。");
+    }
+  }
+  [
+    ["density", "建筑密度"],
+    ["greenery", "绿化率"]
+  ].forEach(([key, field]) => {
+    if (parsed[key].valid && (parsed[key].value < 0 || parsed[key].value > 100)) {
+      addBlockingRange(key, field, parsed[key].value, "%", `${field}必须在 0% 到 100% 之间。`);
+    }
+  });
+
+  if (parsed.far.empty) warning.push(makePreflightItem("far"));
+  if (parsed.gfa.empty) warning.push(makePreflightItem("gfa"));
+  if (parsed.height.empty) warning.push(makePreflightItem("height"));
+  if (floorResult.empty) warning.push(makePreflightItem("floors"));
+  if (!hasValidBoundary) warning.push(makePreflightItem("redLineArea"));
+  if (entranceCount <= 0) warning.push(makePreflightItem("siteEntrance"));
+  if (contextStatus !== "已完成") warning.push(makePreflightItem("contextAnalysis"));
+  if (!String(brief.siteCondition || "").trim()) {
+    warning.push(makePreflightItem("planningRestrictions"));
+  }
+
+  const conditionText = [
+    brief.siteCondition,
+    brief.needs,
+    brief.areaProgram
+  ].filter(Boolean).join(" ");
+  [
+    ["parking", /停车|车位|车库|泊位|落客/],
+    ["pedestrianFlow", /人流|客流|步行|访客|使用人群/],
+    ["accessConditions", /出入口|入口|出口|后勤|消防通道/],
+    ["setback", /退界|退让|退距|建筑间距|红线距离/]
+  ].forEach(([key, pattern]) => {
+    if (!pattern.test(conditionText)) warning.push(makePreflightItem(key));
+  });
+
+  const hasBlocking =
+    blocking.length > 0 ||
+    invalid.some((item) => item.severity === "blocking");
+  const skippableItems = [
+    ...warning,
+    ...invalid.filter((item) => item.severity !== "blocking")
+  ];
+  const validationSkipped = Object.fromEntries(
+    skippableItems.map((item) => [item.key, true])
+  );
+
+  return {
+    blocking,
+    warning,
+    invalid,
+    hasBlocking,
+    validationSkipped,
+    validationSkippedDetails: skippableItems.map(
+      ({ key, field, state, impact }) => ({ key, field, state, impact })
+    )
+  };
+};
+
+window.__ARCHICONCEPT_SHOW_INPUT_PREFLIGHT__ = ({
+  result,
+  onReturn,
+  onContinue
+}) => {
+  document.getElementById("archiconcept-input-preflight")?.remove();
+  const previousOverflow = document.body.style.overflow;
+  document.body.style.overflow = "hidden";
+
+  const overlay = document.createElement("div");
+  overlay.id = "archiconcept-input-preflight";
+  overlay.className = "input-preflight-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-labelledby", "input-preflight-title");
+
+  const panel = document.createElement("div");
+  panel.className = "input-preflight-panel";
+  overlay.appendChild(panel);
+
+  const header = document.createElement("header");
+  header.className = "input-preflight-header";
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "input-preflight-eyebrow";
+  eyebrow.textContent = "INPUT VALIDATION / 数据预检";
+  const title = document.createElement("h2");
+  title.id = "input-preflight-title";
+  title.textContent = "开始问题识别前，请确认输入条件";
+  const description = document.createElement("p");
+  description.textContent = result.hasBlocking
+    ? "以下关键信息缺失或存在严重异常，系统无法进行可靠的问题识别，请先补充。"
+    : "以下信息暂未填写或可能异常，可能影响后续问题识别的准确性。你可以返回补充，也可以继续跳过。";
+  header.append(eyebrow, title, description);
+  panel.appendChild(header);
+
+  const content = document.createElement("div");
+  content.className = "input-preflight-content";
+  panel.appendChild(content);
+
+  const sections = [
+    ["必须补充", "blocking", result.blocking],
+    ["建议补充", "warning", result.warning],
+    ["数据可能异常", "invalid", result.invalid]
+  ];
+
+  sections.forEach(([label, tone, items]) => {
+    const section = document.createElement("section");
+    section.className = `input-preflight-section is-${tone}`;
+    const heading = document.createElement("div");
+    heading.className = "input-preflight-section-heading";
+    const headingText = document.createElement("h3");
+    headingText.textContent = label;
+    const count = document.createElement("span");
+    count.textContent = String(items.length);
+    heading.append(headingText, count);
+    section.appendChild(heading);
+
+    if (items.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "input-preflight-empty";
+      empty.textContent = "当前无此类问题";
+      section.appendChild(empty);
+    } else {
+      const list = document.createElement("div");
+      list.className = "input-preflight-list";
+      items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = `input-preflight-row ${
+          item.severity === "blocking" ? "is-blocking" : ""
+        }`;
+        const marker = document.createElement("span");
+        marker.className = "input-preflight-marker";
+        const copy = document.createElement("div");
+        const itemTitle = document.createElement("div");
+        itemTitle.className = "input-preflight-item-title";
+        itemTitle.textContent = `${item.field}：${item.state}`;
+        const impact = document.createElement("p");
+        impact.textContent = item.impact;
+        copy.append(itemTitle, impact);
+        row.append(marker, copy);
+        list.appendChild(row);
+      });
+      section.appendChild(list);
+    }
+    content.appendChild(section);
+  });
+
+  const footer = document.createElement("footer");
+  footer.className = "input-preflight-footer";
+  const returnButton = document.createElement("button");
+  returnButton.type = "button";
+  returnButton.className = result.hasBlocking
+    ? "input-preflight-button is-primary"
+    : "input-preflight-button is-secondary";
+  returnButton.textContent = "返回补充";
+  footer.appendChild(returnButton);
+
+  if (!result.hasBlocking) {
+    const continueButton = document.createElement("button");
+    continueButton.type = "button";
+    continueButton.className = "input-preflight-button is-primary";
+    continueButton.textContent = "继续跳过并开始识别";
+    continueButton.addEventListener("click", () => {
+      document.body.style.overflow = previousOverflow;
+      overlay.remove();
+      onContinue?.();
+    });
+    footer.appendChild(continueButton);
+  }
+
+  returnButton.addEventListener("click", () => {
+    document.body.style.overflow = previousOverflow;
+    overlay.remove();
+    onReturn?.();
+  });
+  panel.addEventListener("click", (event) => event.stopPropagation());
+  panel.appendChild(footer);
+  document.body.appendChild(overlay);
+  returnButton.focus();
+};
+
+const collectAssistantHintText = (bubble) => {
+  const parts = [];
+  const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+
+  while (node) {
+    const parent = node.parentElement;
+    const text = node.textContent.replace(/\s+/g, " ").trim();
+    if (
+      text &&
+      !parent?.closest("svg") &&
+      !/^ARCHICONCEPT ASSISTANT$/i.test(text)
+    ) {
+      parts.push(text);
+    }
+    node = walker.nextNode();
+  }
+
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+};
+
+const mergeAssistantHints = () => {
+  document
+    .querySelectorAll(
+      'img[src*="ip-input-guide2.png"]:not(.assistant-ip-character)'
+    )
+    .forEach((image) => {
+      const assistantSection = image.parentElement?.parentElement;
+      if (!assistantSection) return;
+
+      const bubble =
+        assistantSection.querySelector("#ip-bubble") ||
+        [...assistantSection.children].find(
+          (child) => child !== image.parentElement && child.textContent?.trim()
+        );
+      const mainCard = assistantSection.previousElementSibling;
+      const hintText = bubble ? collectAssistantHintText(bubble) : "";
+
+      if (!bubble || !mainCard || !hintText) return;
+
+      assistantSection.classList.add("assistant-bubble-merged-source");
+      mainCard.classList.add("assistant-hint-host");
+
+      const characterHost = mainCard.parentElement;
+      if (
+        characterHost &&
+        !characterHost.querySelector(":scope > .assistant-ip-character")
+      ) {
+        characterHost.classList.add("assistant-ip-host");
+        const character = document.createElement("img");
+        character.className = "assistant-ip-character";
+        character.src = "/images/ip-input-guide2.png";
+        character.alt = "ARCHICONCEPT Assistant";
+        character.setAttribute("aria-hidden", "true");
+        characterHost.appendChild(character);
+      }
+
+      let hint = mainCard.querySelector(":scope > .assistant-hint");
+      if (!hint) {
+        hint = document.createElement("div");
+        hint.className = "assistant-hint";
+
+        const label = document.createElement("div");
+        label.className = "assistant-hint-label";
+        label.textContent = "ARCHICONCEPT ASSISTANT";
+
+        const copy = document.createElement("p");
+        copy.className = "assistant-hint-copy";
+
+        hint.append(label, copy);
+        mainCard.appendChild(hint);
+      }
+
+      const copy = hint.querySelector(".assistant-hint-copy");
+      if (copy && copy.textContent !== hintText) copy.textContent = hintText;
+    });
+};
+
+const enhanceInputTypography = () => {
+  const page = document.querySelector("main:has(#id-section-a)");
+  if (!page) return;
+
+  page
+    .querySelectorAll(
+      "#grid-container label, #id-section-b .font-mono, #id-section-c .font-mono"
+    )
+    .forEach((element) => {
+      if (element.querySelector(":scope > .type-en")) return;
+      const textNode = [...element.childNodes].find(
+        (node) =>
+          node.nodeType === Node.TEXT_NODE &&
+          /\s\/\s*[A-Z][A-Z\s&-]*/.test(node.textContent || "")
+      );
+      if (!textNode) return;
+
+      const text = textNode.textContent || "";
+      const match = text.match(/^(.*?)(\s*\/\s*[A-Z][A-Z\s&-]*)(\s*)$/);
+      if (!match) return;
+
+      const english = document.createElement("span");
+      english.className = "type-en";
+      english.textContent = match[2];
+      textNode.replaceWith(
+        document.createTextNode(match[1]),
+        english,
+        document.createTextNode(match[3])
+      );
+    });
+};
+
+let assistantHintFrame = 0;
+const scheduleAssistantHintMerge = () => {
+  cancelAnimationFrame(assistantHintFrame);
+  assistantHintFrame = requestAnimationFrame(() => {
+    mergeAssistantHints();
+    enhanceInputTypography();
+  });
+};
+
+const assistantHintObserver = new MutationObserver(scheduleAssistantHintMerge);
+assistantHintObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  characterData: true
+});
+scheduleAssistantHintMerge();
+
 const response = await fetch(sourceLink.href);
 if (!response.ok) {
   throw new Error(`Unable to load ARCHICONCEPT app source: HTTP ${response.status}`);
@@ -22,6 +610,160 @@ replaceOnce(
   'source:"manual_draw",status:Ce',
   'source:window.__ARCHICONCEPT_REDLINE_SOURCE__||"manual_draw",status:Ce',
   "boundary source"
+);
+
+replaceOnce(
+  'id:"site-loc-label"\n,children:"A+"',
+  'id:"site-loc-label"\n,children:"B"',
+  "site context section label"
+);
+
+replaceOnce(
+  'children:"B"}),n.jsxs("div",{children:[n.jsx("h3",{className:"text-[17px] font-semibold text-[#1A1A1A] leading-normal",children:"这个项目受到哪些规划与规模条件约束？"})',
+  'children:"C"}),n.jsxs("div",{children:[n.jsx("h3",{className:"text-[17px] font-semibold text-[#1A1A1A] leading-normal",children:"这个项目受到哪些规划与规模条件约束？"})',
+  "planning section label"
+);
+
+replaceOnce(
+  'children:"C"}),n.jsxs("div",{children:[n.jsx("h3",{className:"text-[17px] font-semibold text-[#1A1A1A] leading-normal",children:"这个场地需要解决什么问题？"})',
+  'children:"D"}),n.jsxs("div",{children:[n.jsx("h3",{className:"text-[17px] font-semibold text-[#1A1A1A] leading-normal",children:"这个场地需要解决什么问题？"})',
+  "site issues section label"
+);
+
+source = source.replaceAll(
+  'onFocus:()=>E("B")',
+  'onFocus:()=>E("__ARCHICONCEPT_SECTION_C__")'
+);
+source = source.replaceAll('onFocus:()=>E("C")', 'onFocus:()=>E("D")');
+source = source.replaceAll(
+  'onFocus:()=>E("__ARCHICONCEPT_SECTION_C__")',
+  'onFocus:()=>E("C")'
+);
+
+replaceOnce(
+  'S==="B"?"这里填写规划控制和规模边界。":S==="C"?"这里填写场地、功能、人群和面积组成。"',
+  'S==="C"?"这里填写规划控制和规模边界。":S==="D"?"这里填写场地、功能、人群和面积组成。"',
+  "section assistant focus mapping"
+);
+
+replaceOnce(
+  'children:"B"}),n.jsx("span",{children:"规划与规模条件"})',
+  'children:"C"}),n.jsx("span",{children:"规划与规模条件"})',
+  "import preview planning label"
+);
+
+replaceOnce(
+  'children:"C"}),n.jsx("span",{children:"场地需要解决什么问题？"})',
+  'children:"D"}),n.jsx("span",{children:"场地需要解决什么问题？"})',
+  "import preview site issues label"
+);
+
+replaceOnce(
+  'name:a,value:o,onChange:u,onFocus:f,placeholder:l,className:',
+  'name:a,value:o,onChange:u,onFocus:f,onBlur:v=>{if(["area","gfa","buildableArea"].includes(a)){const T=window.__ARCHICONCEPT_SERIALIZE_AREA__(v.target.value);T!==v.target.value&&u({target:{name:a,value:T}})}},placeholder:l,className:',
+  "area input normalization"
+);
+
+replaceOnce(
+  'label:"用地面积 / AREA",name:"area",placeholder:"例如：40000",unit:"㎡"',
+  'label:"用地面积 / AREA",name:"area",placeholder:"例如：2446、2.5ha 或 2.5公顷"',
+  "site area input units"
+);
+
+replaceOnce(
+  'label:"总建筑面积 / GFA",name:"gfa",placeholder:"例如：45000",unit:"㎡"',
+  'label:"总建筑面积 / GFA",name:"gfa",placeholder:"例如：45000、4.5ha 或 4.5公顷"',
+  "gfa input units"
+);
+
+replaceOnce(
+  'label:"红线面积 / BUILDABLE BOUNDARY AREA",name:"buildableArea",placeholder:"例如：40000",unit:"㎡"',
+  'label:"红线面积 / BUILDABLE BOUNDARY AREA",name:"buildableArea",placeholder:"例如：40000、4ha 或 4公顷"',
+  "boundary area input units"
+);
+
+replaceOnce(
+  'mn=v=>{const{name:T,value:V}=v.target;Vn(q=>{const I={...q,[T]:V};',
+  'mn=v=>{const{name:T}=v.target,V=["area","gfa","buildableArea"].includes(T)&&/(ha|公顷|㎡|m²|m2|平方米)/i.test(v.target.value)?window.__ARCHICONCEPT_SERIALIZE_AREA__(v.target.value):v.target.value;Vn(q=>{const I={...q,[T]:V};',
+  "area field storage normalization"
+);
+
+source = source.replaceAll(
+  'je.area?`${je.area} ㎡`:"待补充"',
+  'je.area?window.__ARCHICONCEPT_FORMAT_AREA__(je.area):"待补充"'
+);
+source = source.replaceAll(
+  'je.gfa?`${je.gfa} ㎡`:"待补充"',
+  'je.gfa?window.__ARCHICONCEPT_FORMAT_AREA__(je.gfa):"待补充"'
+);
+source = source.replaceAll(
+  'je.buildableArea?`${je.buildableArea} ㎡`:"待补充"',
+  'je.buildableArea?window.__ARCHICONCEPT_FORMAT_AREA__(je.buildableArea):"待补充"'
+);
+source = source.replaceAll(
+  'ye.area?`${ye.area} ㎡`:""',
+  'ye.area?window.__ARCHICONCEPT_FORMAT_AREA__(ye.area):""'
+);
+source = source.replaceAll(
+  'ye.gfa?`${ye.gfa} ㎡`:""',
+  'ye.gfa?window.__ARCHICONCEPT_FORMAT_AREA__(ye.gfa):""'
+);
+source = source.replaceAll(
+  'ye.buildableArea?`${ye.buildableArea} ㎡`:""',
+  'ye.buildableArea?window.__ARCHICONCEPT_FORMAT_AREA__(ye.buildableArea):""'
+);
+source = source.replaceAll(
+  'value:z?`${z} ㎡`:"未指定"',
+  'value:z?window.__ARCHICONCEPT_FORMAT_AREA__(z):"未指定"'
+);
+source = source.replaceAll(
+  'value:pe?`${pe} ㎡`:"未指定"',
+  'value:pe?window.__ARCHICONCEPT_FORMAT_AREA__(pe):"未指定"'
+);
+source = source.replaceAll(
+  'value:r.gfa?`${r.gfa} ㎡`:"未指定"',
+  'value:r.gfa?window.__ARCHICONCEPT_FORMAT_AREA__(r.gfa):"未指定"'
+);
+source = source.replaceAll(
+  're=r!=null&&r.area?`${r.area} ㎡`:"待补充"',
+  're=r!=null&&r.area?window.__ARCHICONCEPT_FORMAT_AREA__(r.area):"待补充"'
+);
+source = source.replaceAll(
+  'Q=r!=null&&r.gfa?`${r.gfa} ㎡`:"待补充"',
+  'Q=r!=null&&r.gfa?window.__ARCHICONCEPT_FORMAT_AREA__(r.gfa):"待补充"'
+);
+source = source.replaceAll(
+  'be=r!=null&&r.buildableArea?`${r.buildableArea} ㎡`:"待补充"',
+  'be=r!=null&&r.buildableArea?window.__ARCHICONCEPT_FORMAT_AREA__(r.buildableArea):"待补充"'
+);
+
+replaceOnce(
+  'children:[Ws>0?Math.round(Ws):je.area||"未填写",Ws>0||je.area?"㎡":""]',
+  'children:Ws>0?window.__ARCHICONCEPT_FORMAT_AREA__(Ws):je.area?window.__ARCHICONCEPT_FORMAT_AREA__(je.area):"未填写"',
+  "site context area display"
+);
+
+replaceOnce(
+  'value:we?`${Math.round(we)} ㎡`:"未指定"',
+  'value:we?window.__ARCHICONCEPT_FORMAT_AREA__(we):"未指定"',
+  "measured site area display"
+);
+
+replaceOnce(
+  `[xs,eo]=k.useState(null)
+,[Tt,Xr]=k.useState`,
+  `[xs,eo]=k.useState(null),radiusPreviewRef=k.useRef(null)
+,[Tt,Xr]=k.useState`,
+  "radius preview reference"
+);
+
+replaceOnce(
+  `},[xs,visiblePoiLayers,qn,Tt]),
+activePoiLayerEffect=`,
+  `},[xs,visiblePoiLayers,qn,Tt]),
+radiusPreviewEffect=k.useEffect(()=>{const v=ss.current,T=window.AMap;if(radiusPreviewRef.current&&v){try{v.remove(radiusPreviewRef.current)}catch{}radiusPreviewRef.current=null}if(!ie||!fe||!v||!T||!me||Ce!=="\\u5df2\\u786e\\u8ba4"||!xs||Tt==="\\u5df2\\u5b8c\\u6210")return;const V=Ps(),q=Number(V.lng),I=Number(V.lat);if(!Number.isFinite(q)||!Number.isFinite(I))return;const X=new T.Circle({center:new T.LngLat(q,I),radius:xs,fillColor:"#6B7280",fillOpacity:.055,strokeColor:"#374151",strokeOpacity:.82,strokeWeight:2,strokeStyle:"dashed",zIndex:7,map:v});radiusPreviewRef.current=X;return()=>{if(radiusPreviewRef.current){try{v.remove(radiusPreviewRef.current)}catch{}radiusPreviewRef.current=null}}},[ie,fe,me,Ce,xs,Tt]),
+activePoiLayerEffect=`,
+  "radius selection preview"
 );
 
 replaceOnce(
@@ -46,6 +788,72 @@ replaceOnce(
   '},[We]);const[Gr,hr]=k.useState',
   '},[We]);k.useEffect(()=>{const v={points:We.map(T=>({lng:T.lng,lat:T.lat})),areaM2:Ws,perimeterM:_i,status:Ce};window.__ARCHICONCEPT_REDLINE_STATE__=v;window.dispatchEvent(new CustomEvent("archiconcept:redline-state",{detail:v}))},[We,Ws,_i,Ce]);const[Gr,hr]=k.useState',
   "redline state bridge"
+);
+
+replaceOnce(
+  'const La=(v,T)=>{',
+  'const La=(v,T,keepViewport=!1)=>{',
+  "location marker viewport option"
+);
+
+replaceOnce(
+  'Kr.current=J,q.setZoomAndCenter(15,X,!1)',
+  'Kr.current=J,keepViewport||q.setZoomAndCenter(15,X,!1)',
+  "preserve map click zoom"
+);
+
+replaceOnce(
+  'const v=setTimeout(()=>La(j.location,j.name),60);',
+  'const v=setTimeout(()=>La(j.location,j.name,j.source==="map_click"),60);',
+  "map click marker update"
+);
+
+replaceOnce(
+  '})(),()=>{v=!0}},[ie]);const gs=',
+  '})(),()=>{v=!0}},[ie]);const mapLocationPickEffect=k.useEffect(()=>{const v=ss.current,T=window.AMap;if(!ie||!fe||!v||!T||Ce!=="\\u672a\\u7ed8\\u5236"||Pt!=="\\u672a\\u5f00\\u59cb")return;const V=q=>{if(!q||!q.lnglat)return;const I=q.lnglat.getLng(),X=q.lnglat.getLat(),J=((me&&me.name)||(j&&j.name)||je.location||"\\u5730\\u56fe\\u70b9\\u9009\\u4f4d\\u7f6e").trim()||"\\u5730\\u56fe\\u70b9\\u9009\\u4f4d\\u7f6e",Ne={id:"map_pick",name:J,address:"\\u5730\\u56fe\\u70b9\\u9009\\u5750\\u6807",province:me&&me.province||"",city:me&&me.city||"",district:me&&me.district||"",adcode:me&&me.adcode||"",location:{lng:I,lat:X},type:me&&me.type||"\\u5730\\u56fe\\u70b9\\u9009",source:"map_click"};Te(null),U(Ne),Kr.current&&v.remove(Kr.current),Kr.current=new T.Marker({position:new T.LngLat(I,X),map:v,title:"\\u5730\\u56fe\\u70b9\\u9009\\u4f4d\\u7f6e"}),cn("\\u5df2\\u6309\\u5730\\u56fe\\u70b9\\u51fb\\u4f4d\\u7f6e\\u91cd\\u65b0\\u5b9a\\u4f4d\\uff0c\\u8bf7\\u786e\\u8ba4\\u9879\\u76ee\\u4f4d\\u7f6e\\u3002")};return v.on("click",V),()=>v.off("click",V)},[ie,fe,Ce,Pt,me,j,je.location]);const gs=',
+  "map click location selection"
+);
+
+replaceOnce(
+  'Ki=()=>{var v,T,V;if(!pn.canProceed){N(!0),pn.missingRequired.length>0?(v=document.getElementById("id-section-a"))==null||v.scrollIntoView({behavior:"smooth",block:"center"}):pn.scaleFieldsCount<2?(T=document.getElementById("id-section-b"))==null||T.scrollIntoView({behavior:"smooth",block:"center"}):pn.taskFieldsCount<1&&((V=document.getElementById("id-section-c"))==null||V.scrollIntoView({behavior:"smooth",block:"center"}));return}let q="manual";R==="demo"?q="example":R==="imported"&&(q="import");const I=In(),X={...je,siteIntelligencePackage:I};a&&a(X,q)},Sn=',
+  'runProblemPreflight=()=>{let v="manual";R==="demo"?v="example":R==="imported"&&(v="import");const T=In(),V=window.__ARCHICONCEPT_BUILD_INPUT_PREFLIGHT__({brief:je,sitePackage:T,locationConfirmed:!!me,boundaryStatus:Ce,entranceCount:Ut.length,contextStatus:Tt}),q=I=>{const X={...je,area:window.__ARCHICONCEPT_SERIALIZE_AREA__(je.area),gfa:window.__ARCHICONCEPT_SERIALIZE_AREA__(je.gfa),buildableArea:window.__ARCHICONCEPT_SERIALIZE_AREA__(je.buildableArea),siteIntelligencePackage:T,validationSkipped:I?V.validationSkipped:{},validationSkippedDetails:I?V.validationSkippedDetails:[]};a&&a(X,v)};if(!V.hasBlocking&&V.warning.length===0&&V.invalid.length===0){q(!1);return}window.__ARCHICONCEPT_SHOW_INPUT_PREFLIGHT__({result:V,onReturn:()=>{N(V.hasBlocking);const I=[...V.blocking,...V.invalid.filter(X=>X.severity==="blocking"),...V.warning][0],X=I&&document.getElementById(I.section||"id-section-a");X&&X.scrollIntoView({behavior:"smooth",block:"center"})},onContinue:()=>q(!0)})},Ki=runProblemPreflight,problemPreflightNavigationEffect=k.useEffect(()=>{const v=()=>runProblemPreflight();return window.addEventListener("archiconcept:request-problem-identification",v),()=>window.removeEventListener("archiconcept:request-problem-identification",v)},[je,me,Ce,Ut.length,Tt,R]),Sn=',
+  "problem identification preflight"
+);
+
+replaceOnce(
+  'className:"relative z-10 flex flex-col items-center group cursor-pointer",children:',
+  'onClick:()=>{r===1&&u===2&&window.dispatchEvent(new CustomEvent("archiconcept:request-problem-identification"))},className:"relative z-10 flex flex-col items-center group cursor-pointer",children:',
+  "step two navigation preflight"
+);
+
+replaceOnce(
+  'missingTags:[]},problemCards:$e,followUpQuestions:',
+  'missingTags:(r.validationSkippedDetails||[]).map(Ye=>`${Ye.field}\\uff1a\\u5f85\\u786e\\u8ba4`)},problemCards:[...$e,...((r.validationSkippedDetails||[]).length?[{id:"validation_skipped",category:"\\u8f93\\u5165\\u5b8c\\u6574\\u6027",title:"\\u9884\\u68c0\\u9636\\u6bb5\\u8df3\\u8fc7\\u7684\\u4fe1\\u606f\\u9700\\u8981\\u8865\\u5145\\u786e\\u8ba4",impact:`\\u7528\\u6237\\u4e3b\\u52a8\\u8df3\\u8fc7\\u4e86\\uff1a${(r.validationSkippedDetails||[]).map(Ye=>Ye.field).join("\\u3001")}\\u3002\\u76f8\\u5173\\u7ed3\\u8bba\\u5c06\\u4fdd\\u6301\\u4e3a\\u5f85\\u786e\\u8ba4\\u72b6\\u6001\\u3002`,basis:"\\u4f9d\\u636e\\u8f93\\u5165\\u6761\\u4ef6\\u9884\\u68c0\\u4e2d\\u7684\\u7528\\u6237\\u8df3\\u8fc7\\u8bb0\\u5f55\\u3002",needToConfirm:`\\u9700\\u8981\\u8ffd\\u95ee\\uff1a${(r.validationSkippedDetails||[]).map(Ye=>`${Ye.field}\\uff08${Ye.state}\\uff09`).join("\\uff1b")}\\u3002`,status:"\\u5f85\\u786e\\u8ba4",priority:"high",affectsNextStep:["\\u5bb9\\u91cf\\u5224\\u65ad","\\u6d41\\u7ebf\\u7ec4\\u7ec7","\\u573a\\u5730\\u5206\\u6790"]}]:[])],followUpQuestions:',
+  "site-data skipped validation linkage"
+);
+
+replaceOnce(
+  'missingTags:ve},problemCards:me,followUpQuestions:',
+  'missingTags:[...ve,...(r.validationSkippedDetails||[]).map(H=>`${H.field}\\uff1a\\u5f85\\u786e\\u8ba4`)]},problemCards:[...me,...((r.validationSkippedDetails||[]).length?[{id:"validation_skipped",category:"\\u8f93\\u5165\\u5b8c\\u6574\\u6027",title:"\\u9884\\u68c0\\u9636\\u6bb5\\u8df3\\u8fc7\\u7684\\u4fe1\\u606f\\u9700\\u8981\\u8865\\u5145\\u786e\\u8ba4",impact:`\\u7528\\u6237\\u4e3b\\u52a8\\u8df3\\u8fc7\\u4e86\\uff1a${(r.validationSkippedDetails||[]).map(H=>H.field).join("\\u3001")}\\u3002\\u76f8\\u5173\\u7ed3\\u8bba\\u5c06\\u4fdd\\u6301\\u4e3a\\u5f85\\u786e\\u8ba4\\u72b6\\u6001\\u3002`,basis:"\\u4f9d\\u636e\\u8f93\\u5165\\u6761\\u4ef6\\u9884\\u68c0\\u4e2d\\u7684\\u7528\\u6237\\u8df3\\u8fc7\\u8bb0\\u5f55\\u3002",needToConfirm:`\\u9700\\u8981\\u8ffd\\u95ee\\uff1a${(r.validationSkippedDetails||[]).map(H=>`${H.field}\\uff08${H.state}\\uff09`).join("\\uff1b")}\\u3002`,status:"\\u5f85\\u786e\\u8ba4",priority:"high",affectsNextStep:["\\u5bb9\\u91cf\\u5224\\u65ad","\\u6d41\\u7ebf\\u7ec4\\u7ec7","\\u573a\\u5730\\u5206\\u6790"]}]:[])],followUpQuestions:',
+  "manual-data skipped validation linkage"
+);
+
+replaceOnce(
+  'function ak({onBack:r,onNext:a,onReAnalyze:l,onAnswersChange:o,projectData:u={},projectSource:p="manual",analyzedData:m,initialAnswers:f,isStale:x}){var g,b,w,N,S;const[E,R]=k.useState(()=>m||null),',
+  'function ak({onBack:r,onNext:a,onReAnalyze:l,onAnswersChange:o,projectData:u={},projectSource:p="manual",analyzedData:m,initialAnswers:f,isStale:x}){var g,b,w,N,S;const augmentValidationSkipped=O=>{const te=u.validationSkippedDetails||[];if(!O||te.length===0)return O;const ye={id:"validation_skipped",category:"\\u8f93\\u5165\\u5b8c\\u6574\\u6027",title:"\\u9884\\u68c0\\u9636\\u6bb5\\u8df3\\u8fc7\\u7684\\u4fe1\\u606f\\u9700\\u8981\\u8865\\u5145\\u786e\\u8ba4",description:`\\u7528\\u6237\\u4e3b\\u52a8\\u8df3\\u8fc7\\u4e86\\uff1a${te.map(xe=>xe.field).join("\\u3001")}\\u3002\\u76f8\\u5173\\u5224\\u65ad\\u5e94\\u4fdd\\u6301\\u4e3a\\u5f85\\u786e\\u8ba4\\u72b6\\u6001\\u3002`,impact:"\\u7f3a\\u5931\\u9879\\u53ef\\u80fd\\u5f71\\u54cd\\u5bb9\\u91cf\\u3001\\u6d41\\u7ebf\\u3001\\u8fb9\\u754c\\u548c\\u5468\\u8fb9\\u5173\\u7cfb\\u5224\\u65ad\\u3002",basis:"\\u4f9d\\u636e\\u8f93\\u5165\\u6761\\u4ef6\\u9884\\u68c0\\u4e2d\\u7684\\u7528\\u6237\\u8df3\\u8fc7\\u8bb0\\u5f55\\u3002",needToConfirm:`\\u9700\\u8981\\u8ffd\\u95ee\\uff1a${te.map(xe=>`${xe.field}\\uff08${xe.state}\\uff09`).join("\\uff1b")}\\u3002`,status:"\\u5f85\\u786e\\u8ba4",priority:"high",affectsNextStep:["\\u5bb9\\u91cf\\u5224\\u65ad","\\u6d41\\u7ebf\\u7ec4\\u7ec7","\\u573a\\u5730\\u5206\\u6790"]};return{...O,projectSummary:{...(O.projectSummary||{}),missingTags:[...((O.projectSummary&&O.projectSummary.missingTags)||[]),...te.map(xe=>`${xe.field}\\uff1a\\u5f85\\u786e\\u8ba4`)]},problemCards:[...(O.problemCards||[]).filter(xe=>xe.id!=="validation_skipped"),ye]}},[E,R]=k.useState(()=>augmentValidationSkipped(m)||null),',
+  "online analysis skipped validation helper"
+);
+
+replaceOnce(
+  'const O=Up(u);R(O),K("review")',
+  'const O=Up(u);R(augmentValidationSkipped(O)),K("review")',
+  "fallback analysis skipped validation"
+);
+
+replaceOnce(
+  'if(m){R(m);const te=',
+  'if(m){R(augmentValidationSkipped(m));const te=',
+  "online analysis skipped validation"
 );
 
 replaceOnce(
