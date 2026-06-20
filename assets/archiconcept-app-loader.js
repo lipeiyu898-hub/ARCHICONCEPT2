@@ -692,6 +692,495 @@ assistantHintObserver.observe(document.documentElement, {
 });
 scheduleAssistantHintMerge();
 
+const getProblemPriority = (card) => {
+  if (card.classList.contains("problem-card-p0")) return "P0";
+  if (card.classList.contains("problem-card-p2")) return "P2";
+  return "P1";
+};
+
+const highlightProblemQuestion = (target) => {
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.remove("problem-question-highlight");
+  requestAnimationFrame(() => {
+    target.classList.add("problem-question-highlight");
+    window.setTimeout(
+      () => target.classList.remove("problem-question-highlight"),
+      1800
+    );
+  });
+};
+
+const locateRequiredProblemQuestion = () => {
+  const questions = [
+    ...document.querySelectorAll(
+      '#module-c-questions [id^="question-wrapper-"]'
+    )
+  ];
+  const unanswered =
+    questions.find(
+      (question) =>
+        !question.querySelector(
+          'button[class*="bg-[#111]"], button[class*="bg-zinc-800"]'
+        )
+    ) || questions[0];
+  highlightProblemQuestion(unanswered);
+};
+
+const enhanceProblemCard = (card) => {
+  if (card.dataset.problemEnhanced === "true") return;
+  card.dataset.problemEnhanced = "true";
+
+  const summary = card.querySelector("h4 + p");
+  const details = card.lastElementChild;
+  const category =
+    card.querySelector(":scope > div:first-child span")?.textContent?.trim() ||
+    "设计问题";
+  const title = card.querySelector("h4")?.textContent?.trim() || "当前问题";
+  summary?.classList.add("problem-card-summary");
+  if (details && details !== card.firstElementChild) {
+    details.classList.add("problem-card-details");
+
+    const detailText = details.textContent || "";
+    if (!/触发依据|依据：/.test(detailText)) {
+      const basis = document.createElement("div");
+      basis.className = "problem-card-detail-row";
+      basis.innerHTML =
+        "<span>触发依据</span><p>依据当前用户输入、已有场地信息与系统规则推断。</p>";
+      details.appendChild(basis);
+    }
+    if (!/影响范围/.test(detailText)) {
+      const impact = document.createElement("div");
+      impact.className = "problem-card-detail-row";
+      const impactLabel = document.createElement("span");
+      impactLabel.textContent = "影响范围";
+      const impactCopy = document.createElement("p");
+      impactCopy.textContent = `${category}、空间意图与策略匹配`;
+      impact.append(impactLabel, impactCopy);
+      details.appendChild(impact);
+    }
+    if (!/确认：|需要确认/.test(detailText)) {
+      const confirmation = document.createElement("div");
+      confirmation.className = "problem-card-detail-row";
+      const confirmationLabel = document.createElement("span");
+      confirmationLabel.textContent = "需要确认";
+      const confirmationCopy = document.createElement("p");
+      confirmationCopy.textContent = `${title}是否应作为后续方案的明确约束。`;
+      confirmation.append(confirmationLabel, confirmationCopy);
+      details.appendChild(confirmation);
+    }
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "problem-card-actions";
+
+  const expandButton = document.createElement("button");
+  expandButton.type = "button";
+  expandButton.className = "problem-card-expand";
+  expandButton.textContent = "展开依据";
+  expandButton.addEventListener("click", () => {
+    const expanded = card.classList.toggle("is-expanded");
+    expandButton.textContent = expanded ? "收起依据" : "展开依据";
+  });
+
+  const answerButton = document.createElement("button");
+  answerButton.type = "button";
+  answerButton.className = "problem-card-answer";
+  answerButton.textContent =
+    getProblemPriority(card) === "P0" ? "回答关联问题" : "查看追问";
+  answerButton.addEventListener("click", () => {
+    const questions = [
+      ...document.querySelectorAll(
+        '#module-c-questions [id^="question-wrapper-"]'
+      )
+    ];
+    const index = Number(card.dataset.problemIndex || 0);
+    highlightProblemQuestion(
+      questions[Math.min(index, Math.max(questions.length - 1, 0))] ||
+        questions[0]
+    );
+  });
+
+  actions.append(expandButton, answerButton);
+  card.appendChild(actions);
+};
+
+const rebuildProblemGroups = (list) => {
+  const cards = [...list.children].filter((element) =>
+    element.classList.contains("problem-card")
+  );
+  const signature = cards
+    .map(
+      (card) =>
+        `${getProblemPriority(card)}:${card.querySelector("h4")?.textContent || ""}`
+    )
+    .join("|");
+  if (
+    list.dataset.problemGroupSignature === signature &&
+    list.querySelector(":scope > .problem-priority-group")
+  ) {
+    cards.forEach(enhanceProblemCard);
+    return;
+  }
+  list.dataset.problemGroupSignature = signature;
+  list
+    .querySelectorAll(":scope > .problem-priority-group")
+    .forEach((element) => element.remove());
+
+  const groupCopy = {
+    P0: ["P0 必须确认", "直接影响后续空间意图与策略判断"],
+    P1: ["P1 建议确认", "补充后可提高问题识别可信度"],
+    P2: ["P2 参考问题", "用于完善方案边界，可按需查看"]
+  };
+  const inserted = new Set();
+
+  cards.forEach((card) => {
+    card.dataset.problemIndex = String(cards.indexOf(card));
+    const priority = getProblemPriority(card);
+    if (!inserted.has(priority)) {
+      const group = document.createElement("div");
+      group.className = `problem-priority-group is-${priority.toLowerCase()}`;
+      const title = document.createElement("strong");
+      const note = document.createElement("span");
+      title.textContent = groupCopy[priority][0];
+      note.textContent = groupCopy[priority][1];
+      group.append(title, note);
+      list.insertBefore(group, card);
+      inserted.add(priority);
+    }
+    enhanceProblemCard(card);
+  });
+};
+
+const enhanceProblemTrust = () => {
+  const module = document.querySelector("#module-b-problems");
+  const header = document.querySelector("#problems-header");
+  if (!module || !header) return;
+
+  let strip = module.querySelector(":scope > .problem-trust-strip");
+  if (!strip) {
+    strip = document.createElement("div");
+    strip.className = "problem-trust-strip";
+    header.insertAdjacentElement("afterend", strip);
+  }
+
+  const review = document.querySelector("#module-a-review");
+  const reviewText = review?.textContent || "";
+  const missingFields = [
+    ...new Set(
+      [...(review?.querySelectorAll("span") || [])]
+        .map((element) => element.textContent?.trim())
+        .filter(
+          (text) =>
+            text &&
+            text !== "缺失项:" &&
+            (text.includes("待确认") || text.includes("未指定"))
+        )
+    )
+  ];
+  const hasSiteEvidence =
+    !/项目地点\s*\/\s*LOCATION\s*未指定/.test(reviewText) ||
+    /实测|红线|入口|周边/.test(reviewText);
+  const sources = ["用户输入"];
+  if (hasSiteEvidence) sources.push("场地分析");
+  sources.push("系统推断");
+  const confidence =
+    missingFields.length >= 3 ? "低" : missingFields.length > 0 ? "中" : "高";
+  const signature = `${sources.join(" / ")}|${confidence}|${missingFields.join(
+    "、"
+  )}`;
+  if (strip.dataset.signature === signature) return;
+  strip.dataset.signature = signature;
+  strip.replaceChildren();
+
+  const source = document.createElement("div");
+  source.innerHTML = `<span>依据来源</span><strong>${sources.join(
+    " / "
+  )}</strong>`;
+  const confidenceNode = document.createElement("div");
+  confidenceNode.innerHTML = `<span>置信度</span><strong class="is-confidence-${confidence}">${confidence}</strong>`;
+  const missing = document.createElement("div");
+  missing.className = "problem-trust-missing";
+  missing.innerHTML = `<span>缺失字段</span><strong>${
+    missingFields.length ? missingFields.join("、") : "无关键缺失"
+  }</strong>`;
+  strip.append(source, confidenceNode, missing);
+};
+
+const parseProblemSummary = () => {
+  const summary = document.querySelector("#summary-meta-list");
+  const questions = document.querySelector("#module-c-questions");
+  const text = summary?.textContent || "";
+  const questionText = questions?.textContent || "";
+  const total = Number(text.match(/识别设计卡点数\s*(\d+)/)?.[1] || 0);
+  const progress = text.match(/已答\s*(\d+)\s*\/\s*(\d+)/);
+  const answered = Number(progress?.[1] || 0);
+  const required = Number(progress?.[2] || 0);
+  const optional = Number(
+    questionText.match(/(?:展开|收起)\s*\((\d+)\)/)?.[1] || 0
+  );
+  const level = text.match(/数据完成等级\s*([高中低])/)?.[1] || "低";
+  return {
+    total,
+    answered,
+    required,
+    optional,
+    level,
+    blocking: Math.max(required - answered, 0)
+  };
+};
+
+const enhanceProblemSummary = () => {
+  const panel = document.querySelector("#summary-panel");
+  const original = document.querySelector("#summary-meta-list");
+  if (!panel || !original) return;
+
+  original.classList.add("problem-summary-original");
+  let actionable = panel.querySelector(":scope > .problem-summary-actionable");
+  if (!actionable) {
+    actionable = document.createElement("div");
+    actionable.className = "problem-summary-actionable";
+    original.insertAdjacentElement("afterend", actionable);
+  }
+
+  const data = parseProblemSummary();
+  const status = data.blocking === 0 ? "可进入下一步" : "待确认";
+  const next =
+    data.blocking === 0
+      ? "关键问题已确认，可进入空间意图。"
+      : `回答剩余 ${data.blocking} 个必答问题后可进入空间意图。`;
+  const signature = JSON.stringify({ ...data, status, next });
+  if (actionable.dataset.signature === signature) return;
+  actionable.dataset.signature = signature;
+  actionable.innerHTML = `
+    <div class="problem-summary-row">
+      <span>识别结果状态</span><strong>${status}</strong>
+    </div>
+    <div class="problem-summary-row">
+      <span>数据可信度</span><strong>${data.level}</strong>
+    </div>
+    <div class="problem-summary-row">
+      <span>必须回答</span><strong>${data.answered} / ${data.required}</strong>
+    </div>
+    <div class="problem-summary-row">
+      <span>建议补充</span><strong>${data.optional} 项</strong>
+    </div>
+    <div class="problem-summary-row is-blocking">
+      <span>阻断项</span><strong>${data.blocking} 项</strong>
+    </div>
+    <div class="problem-summary-next">
+      <span>下一步</span>
+      <p>${next}</p>
+    </div>
+    <button type="button" class="problem-summary-locate">定位到必答问题</button>
+  `;
+  actionable
+    .querySelector(".problem-summary-locate")
+    ?.addEventListener("click", locateRequiredProblemQuestion);
+};
+
+const enhanceProblemQuestions = () => {
+  const wrappers = [
+    ...document.querySelectorAll(
+      '#module-c-questions [id^="question-wrapper-"]'
+    )
+  ];
+  const problemTitles = [
+    ...document.querySelectorAll("#problems-list .problem-card h4")
+  ].map((title) => title.textContent?.trim());
+
+  wrappers.forEach((wrapper, index) => {
+    wrapper.classList.add("problem-question-card");
+    const label = wrapper.querySelector("label");
+    if (!label) return;
+    const titleText = [...label.childNodes]
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean)
+      .join("");
+    if (titleText) return;
+    label.append(
+      document.createTextNode(
+        problemTitles[index] || "请确认该设计条件是否作为后续方案的明确约束。"
+      )
+    );
+  });
+};
+
+const updateProblemExpandControl = () => {
+  const module = document.querySelector("#module-b-problems");
+  if (!module) return;
+  const button = [...module.querySelectorAll("button")].find((element) =>
+    /展开更多问题|收起次要问题|展开一般与参考问题|收起一般与参考问题/.test(
+      element.textContent || ""
+    )
+  );
+  if (!button) return;
+  const label = button.querySelector("span");
+  const expanded = /收起/.test(button.textContent || "");
+  if (label) {
+    const nextLabel = expanded
+      ? "收起一般与参考问题"
+      : "展开一般与参考问题";
+    if (label.textContent !== nextLabel) label.textContent = nextLabel;
+  }
+};
+
+const ensureSystemEstimateMarker = () => {
+  const saved = sessionStorage.getItem("archiconcept:system-estimate");
+  const isProblemPage = Boolean(document.querySelector("#main-container-step2"));
+  if (!saved || isProblemPage) return;
+  const header =
+    document.querySelector("#header-section") ||
+    document.querySelector("main h1")?.parentElement;
+  if (!header || header.querySelector(".system-estimate-marker")) return;
+  const marker = document.createElement("div");
+  marker.className = "system-estimate-marker";
+  marker.textContent = "部分判断由系统估算生成，建议复核";
+  header.appendChild(marker);
+};
+
+const enhanceProblemIdentificationPage = () => {
+  const page = document.querySelector("#main-container-step2");
+  if (!page) {
+    ensureSystemEstimateMarker();
+    return;
+  }
+
+  page.classList.add("problem-identification-enhanced");
+  const list = document.querySelector("#problems-list");
+  if (list) rebuildProblemGroups(list);
+  enhanceProblemTrust();
+  enhanceProblemSummary();
+  enhanceProblemQuestions();
+  updateProblemExpandControl();
+};
+
+const showSystemEstimateDialog = (sourceButton) => {
+  if (document.querySelector(".system-estimate-overlay")) return;
+  const previousOverflow = document.body.style.overflow;
+  const unanswered = [
+    ...document.querySelectorAll(
+      '#module-c-questions [id^="question-wrapper-"]'
+    )
+  ]
+    .filter(
+      (question) =>
+        !question.querySelector(
+          'button[class*="bg-[#111]"], button[class*="bg-zinc-800"]'
+        )
+    )
+    .map((question) =>
+      (question.querySelector("label")?.textContent || "")
+        .replace(/^必答/, "")
+        .trim()
+    )
+    .filter(Boolean);
+  const items = unanswered.length
+    ? unanswered
+    : ["未确认的设计条件与空间组织偏好"];
+
+  const overlay = document.createElement("div");
+  overlay.className = "system-estimate-overlay";
+  const dialog = document.createElement("section");
+  dialog.className = "system-estimate-dialog";
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  dialog.setAttribute("aria-labelledby", "system-estimate-title");
+
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "system-estimate-eyebrow";
+  eyebrow.textContent = "SYSTEM ESTIMATE / 系统估算";
+  const title = document.createElement("h2");
+  title.id = "system-estimate-title";
+  title.textContent = "确认使用系统估算";
+  const description = document.createElement("p");
+  description.className = "system-estimate-description";
+  description.textContent =
+    "系统将对以下未确认项采用常规默认判断。这些估算会影响后续空间意图和策略匹配，你可以后续返回修改。";
+  const list = document.createElement("ol");
+  list.className = "system-estimate-list";
+  items.forEach((item) => {
+    const row = document.createElement("li");
+    row.textContent = item;
+    list.appendChild(row);
+  });
+  const note = document.createElement("p");
+  note.className = "system-estimate-note";
+  note.textContent = "进入后续步骤后，相关判断将标记为“系统估算，建议复核”。";
+  const footer = document.createElement("footer");
+  footer.className = "system-estimate-footer";
+  const returnButton = document.createElement("button");
+  returnButton.type = "button";
+  returnButton.className = "system-estimate-return";
+  returnButton.textContent = "返回补充";
+  const confirmButton = document.createElement("button");
+  confirmButton.type = "button";
+  confirmButton.className = "system-estimate-confirm";
+  confirmButton.textContent = "确认使用系统估算";
+  footer.append(returnButton, confirmButton);
+  dialog.append(eyebrow, title, description, list, note, footer);
+  overlay.appendChild(dialog);
+
+  const close = () => {
+    document.body.style.overflow = previousOverflow;
+    overlay.remove();
+  };
+  returnButton.addEventListener("click", close);
+  confirmButton.addEventListener("click", () => {
+    sessionStorage.setItem(
+      "archiconcept:system-estimate",
+      JSON.stringify({ items, confirmedAt: new Date().toISOString() })
+    );
+    close();
+    sourceButton.dataset.estimateConfirmed = "true";
+    sourceButton.click();
+  });
+  dialog.addEventListener("click", (event) => event.stopPropagation());
+  document.body.style.overflow = "hidden";
+  document.body.appendChild(overlay);
+  returnButton.focus();
+};
+
+document.addEventListener(
+  "click",
+  (event) => {
+    const skipButton = event.target.closest("#action-skip");
+    if (skipButton) {
+      if (skipButton.dataset.estimateConfirmed === "true") {
+        delete skipButton.dataset.estimateConfirmed;
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showSystemEstimateDialog(skipButton);
+      return;
+    }
+
+    if (event.target.closest("#action-next")) {
+      sessionStorage.removeItem("archiconcept:system-estimate");
+    }
+  },
+  true
+);
+
+let problemEnhancementFrame = 0;
+const scheduleProblemEnhancement = () => {
+  cancelAnimationFrame(problemEnhancementFrame);
+  problemEnhancementFrame = requestAnimationFrame(
+    enhanceProblemIdentificationPage
+  );
+};
+const problemEnhancementObserver = new MutationObserver(
+  scheduleProblemEnhancement
+);
+problemEnhancementObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  characterData: true
+});
+scheduleProblemEnhancement();
+
 const MAP_DISPLAY_DEFAULTS = {
   1: {
     mode: "standard",
@@ -1271,6 +1760,54 @@ replaceOnce(
   'if(m){R(m);const te=',
   'if(m){R(augmentValidationSkipped(m));const te=',
   "online analysis skipped validation"
+);
+
+replaceOnce(
+  're=E!=null&&E.requiredQuestions&&E.requiredQuestions.length>0?E.requiredQuestions:((g=E?.followUpQuestions)==null?void 0:g.primary)||[],ge=re.length,we=re.filter(O=>z[O.id]&&z[O.id]!=="").length,j=E!=null&&E.optionalQuestions&&E.optionalQuestions.length>0?E.optionalQuestions:((b=E?.followUpQuestions)==null?void 0:b.secondary)||[];j.length;const U=',
+  'normalizeQuestion=(O,te,ye)=>{const Ve=typeof O==="string"?{question:O}:O||{},xe=(typeof O==="string"?(E?.problemCards||[])[te]:null)||(E?.problemCards||[]).find(Re=>Re.id===(Ve.linkedIssueId||Ve.issueId||Ve.problemId)),nt=Ve.question||Ve.q||Ve.prompt||Ve.title||Ve.label||(xe?.needToConfirm||"").replace(/^\\u9700\\u8981\\u786e\\u8ba4\\uff1a/,"")||`${xe?.title||"\\u8be5\\u8bbe\\u8ba1\\u6761\\u4ef6"}\\u662f\\u5426\\u5e94\\u4f5c\\u4e3a\\u540e\\u7eed\\u65b9\\u6848\\u7684\\u660e\\u786e\\u7ea6\\u675f\\uff1f`,Fe=Ve.options||Ve.choices||Ve.answers||["\\u9700\\u8981\\u4f5c\\u4e3a\\u786c\\u6027\\u6761\\u4ef6","\\u53ef\\u4f5c\\u4e3a\\u5efa\\u8bae\\u6761\\u4ef6","\\u6682\\u4e0d\\u786e\\u5b9a\\uff0c\\u7531\\u7cfb\\u7edf\\u4f30\\u7b97"],Z=Ve.reason||Ve.whyRequired||Ve.basis||xe?.basis||xe?.description||"\\u8be5\\u5224\\u65ad\\u4f1a\\u76f4\\u63a5\\u6539\\u53d8\\u540e\\u7eed\\u7a7a\\u95f4\\u7ec4\\u7ec7\\u4e0e\\u6280\\u672f\\u7b56\\u7565\\u3002",Le=Ve.impact||Ve.affects||Ve.affectsNextStep||xe?.affectsNextStep||xe?.impact||xe?.tags||"\\u5f71\\u54cd\\u540e\\u7eed\\u7a7a\\u95f4\\u610f\\u56fe\\u4e0e\\u7b56\\u7565\\u5339\\u914d\\u3002";return{...Ve,id:Ve.id||`${ye?"required":"optional"}_${te+1}`,question:nt,options:Array.isArray(Fe)&&Fe.length?Fe:["\\u9700\\u8981","\\u4e0d\\u9700\\u8981","\\u6682\\u4e0d\\u786e\\u5b9a\\uff0c\\u7531\\u7cfb\\u7edf\\u4f30\\u7b97"],reason:Z,impact:Le,required:ye}},re=(E!=null&&E.requiredQuestions&&E.requiredQuestions.length>0?E.requiredQuestions:((g=E?.followUpQuestions)==null?void 0:g.primary)||[]).map((O,te)=>normalizeQuestion(O,te,!0)),ge=re.length,we=re.filter(O=>z[O.id]&&z[O.id]!=="").length,j=(E!=null&&E.optionalQuestions&&E.optionalQuestions.length>0?E.optionalQuestions:((b=E?.followUpQuestions)==null?void 0:b.secondary)||[]).map((O,te)=>normalizeQuestion(O,te,!1));j.length;const U=',
+  "problem question normalization"
+);
+
+replaceOnce(
+  'de=E?.projectSummary||{projectName:u.name||"未指定",buildingType:u.type||"未指定",location:u.location||"未指定",keyMetrics:[{label:"用地面积",value:u.area?`${u.area} ㎡`:"未指定"},{label:"总建筑面积",value:u.gfa?`${u.gfa} ㎡`:"未指定"},{label:"建筑密度",value:u.density?`${u.density} %`:"未指定"},{label:"绿化率",value:u.greenery?`${u.greenery} %`:"未指定"},{label:"建筑限高",value:u.height?`${u.height} m`:"未指定"},{label:"层数范围",value:u.floors||"未指定"}],missingTags:[]},be=',
+  'de={...(E?.projectSummary||{}),projectName:E?.projectSummary?.projectName||u.name||u.projectName||"未指定",buildingType:E?.projectSummary?.buildingType||u.type||u.buildingType||"未指定",location:E?.projectSummary?.location||u.location||"未指定",keyMetrics:E?.projectSummary?.keyMetrics?.length?E.projectSummary.keyMetrics:[{label:"用地面积",value:u.area?`${u.area} ㎡`:"未指定"},{label:"总建筑面积",value:u.gfa?`${u.gfa} ㎡`:"未指定"},{label:"建筑密度",value:u.density?`${u.density} %`:"未指定"},{label:"绿化率",value:u.greenery?`${u.greenery} %`:"未指定"},{label:"建筑限高",value:u.height?`${u.height} m`:"未指定"},{label:"层数范围",value:u.floors||"未指定"}],missingTags:E?.projectSummary?.missingTags||[]},be=',
+  "problem project summary merge"
+);
+
+replaceOnce(
+  'be=E?.problemCards||[],ke=E?.hiddenProblemCards||[],le=be.length>0?ke.length>0?be:be.slice(0,5):[],H=ke.length>0?ke:be.length>5?be.slice(5):[],Ie=se?[...le,...H]:le,_e=le.length+H.length,',
+  'be=E?.problemCards||[],ke=E?.hiddenProblemCards||[],problemRank=O=>O.priority==="high"||O.pri==="high"||O.severity==="high"?0:O.priority==="low"||O.pri==="low"||O.severity==="low"?2:1,allProblems=[...be,...ke].filter((O,te,ye)=>ye.findIndex(xe=>(xe.id||xe.title)===(O.id||O.title))===te).sort((O,te)=>problemRank(O)-problemRank(te)),le=allProblems.slice(0,3),H=allProblems.slice(3),Ie=se?allProblems:le,_e=allProblems.length,',
+  "problem priority sorting"
+);
+
+replaceOnce(
+  'const ye=O.priority==="high"||O.pri==="high",xe=O.priority==="low"||O.pri==="low",Re=ye?',
+  'const ye=O.priority==="high"||O.pri==="high"||O.severity==="high",xe=O.priority==="low"||O.pri==="low"||O.severity==="low",priorityCode=ye?"P0":xe?"P2":"P1",Re=ye?',
+  "problem priority code"
+);
+
+replaceOnce(
+  'className:`p-5 border ${Re} rounded-xl space-y-4',
+  'className:`problem-card problem-card-${priorityCode.toLowerCase()} p-5 border ${Re} rounded-xl space-y-4',
+  "problem card priority class"
+);
+
+replaceOnce(
+  'children:nt})]}),n.jsx("h4"',
+  'children:priorityCode})]}),n.jsx("h4"',
+  "problem priority badge"
+);
+
+replaceOnce(
+  'O.question||O.q]}),n.jsx("div",{className:"flex flex-wrap gap-2.5"',
+  'O.question||O.q]}),O.reason&&n.jsxs("p",{className:"problem-question-reason",children:[n.jsx("span",{children:"\\u5fc5\\u987b\\u56de\\u7b54\\u7684\\u539f\\u56e0\\uff1a"}),O.reason]}),O.impact&&n.jsxs("p",{className:"problem-question-impact",children:[n.jsx("span",{children:"\\u5bf9\\u540e\\u7eed\\u5f71\\u54cd\\uff1a"}),Array.isArray(O.impact)?O.impact.join("\\u3001"):O.impact]}),n.jsx("div",{className:"flex flex-wrap gap-2.5"',
+  "required question context"
+);
+
+replaceOnce(
+  'u.inputReview.problemSummaries.map((H,Ie)=>({title:`${Ie+1}. ${H.title}`,desc:H.description}))',
+  'u.inputReview.problemSummaries.map((H,Ie)=>({title:`${Ie+1}. ${typeof H==="string"?H:H.title||H.name||"\\u5f85\\u786e\\u8ba4\\u95ee\\u9898"}`,desc:typeof H==="string"?"\\u7531\\u95ee\\u9898\\u8bc6\\u522b\\u7ed3\\u679c\\u8f6c\\u5165\\u7a7a\\u95f4\\u610f\\u56fe\\u5224\\u65ad\\u3002":H.description||H.desc||""}))',
+  "spatial intent problem summary normalization"
 );
 
 replaceOnce(
