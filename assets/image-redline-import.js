@@ -15,6 +15,7 @@ const state = {
   message: "",
   error: "",
   imported: false,
+  importPanelCollapsed: false,
   placementConfirmed: false,
   scale: 100,
   rotation: 0,
@@ -98,6 +99,7 @@ const setImageSource = (canvas, fileName) => {
   state.message = "图片已载入，正在尝试识别闭合轮廓。";
   state.error = "";
   state.imported = false;
+  state.importPanelCollapsed = false;
   state.placementConfirmed = false;
   state.scale = 100;
   state.rotation = 0;
@@ -764,6 +766,17 @@ const dispatchImport = (detail) => {
   );
 };
 
+const focusImportedMapEdit = () => {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      (
+        document.querySelector(".image-redline-import-summary") ||
+        document.querySelector(".image-redline-map-edit")
+      )?.scrollIntoView({ behavior: "auto", block: "start" });
+    });
+  });
+};
+
 const importSelectedCandidate = () => {
   const candidate = state.candidates[state.selectedCandidate];
   if (!candidate) {
@@ -771,6 +784,7 @@ const importSelectedCandidate = () => {
     return;
   }
   state.imported = true;
+  state.importPanelCollapsed = true;
   state.placementConfirmed = false;
   state.scale = 100;
   state.rotation = 0;
@@ -781,6 +795,7 @@ const importSelectedCandidate = () => {
     aspect: candidate.aspect
   });
   renderActiveShell();
+  focusImportedMapEdit();
 };
 
 const findNativeButton = (body, label) =>
@@ -801,6 +816,7 @@ const clearImportedResult = (body) => {
   );
   if (clearButton && !clearButton.disabled) clearButton.click();
   state.imported = false;
+  state.importPanelCollapsed = false;
   state.placementConfirmed = false;
   state.scale = 100;
   state.rotation = 0;
@@ -965,49 +981,70 @@ const renderShell = (shell, body) => {
     ${
       state.mode === "image"
         ? `
-          <div class="image-redline-panel">
+          <div class="image-redline-panel ${
+            state.imported && state.importPanelCollapsed
+              ? "is-import-collapsed"
+              : ""
+          }">
             <div class="image-redline-heading">
               <h4>上传图片识别红线</h4>
               <p>适用于已有场地图、红线图或任务书截图。系统将识别候选轮廓，用户调整位置与比例后确认用地红线。</p>
             </div>
-            <div class="image-redline-upload">
-              <input type="file" data-role="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
-              <div>
-                <strong>${state.fileName || "支持 JPG、PNG、PDF 第一页"}</strong>
-                <span>文件上限 15 MB，优先使用线条清晰、对比明确的图纸</span>
-              </div>
-              <button type="button" class="image-redline-secondary" data-action="upload">上传图片</button>
-            </div>
             ${
-              state.sourceCanvas
+              state.imported && state.importPanelCollapsed
                 ? `
-                  <div class="image-redline-preview">
-                    <canvas data-role="preview" aria-label="上传图片与候选轮廓预览"></canvas>
+                  <div class="image-redline-import-summary">
+                    <div>
+                      <strong>图片轮廓已导入地图</strong>
+                      <span>${state.fileName || "已识别图片"} · 可在下方继续编辑与确认</span>
+                    </div>
+                    <button type="button" class="image-redline-secondary" data-action="expand-import">
+                      展开图片识别
+                    </button>
                   </div>
                 `
-                : ""
+                : `
+                  <div class="image-redline-upload">
+                    <input type="file" data-role="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
+                    <div>
+                      <strong>${state.fileName || "支持 JPG、PNG、PDF 第一页"}</strong>
+                      <span>文件上限 15 MB，优先使用线条清晰、对比明确的图纸</span>
+                    </div>
+                    <button type="button" class="image-redline-secondary" data-action="upload">上传图片</button>
+                  </div>
+                  ${
+                    state.sourceCanvas
+                      ? `
+                        <div class="image-redline-preview">
+                          <canvas data-role="preview" aria-label="上传图片与候选轮廓预览"></canvas>
+                        </div>
+                      `
+                      : ""
+                  }
+                  ${candidateMarkup()}
+                  ${statusMarkup()}
+                  <div class="image-redline-actions">
+                    <button type="button" class="image-redline-secondary" data-action="recognize" ${
+                      !state.sourceCanvas ||
+                      state.recognitionStatus === "recognizing"
+                        ? "disabled"
+                        : ""
+                    }>
+                      ${
+                        state.recognitionStatus === "recognizing"
+                          ? "正在识别..."
+                          : "识别候选轮廓"
+                      }
+                    </button>
+                    <button type="button" class="image-redline-primary" data-action="import" ${
+                      state.selectedCandidate < 0 ? "disabled" : ""
+                    }>导入到地图</button>
+                    <button type="button" class="image-redline-quiet" data-action="clear">
+                      清除识别结果
+                    </button>
+                  </div>
+                `
             }
-            ${candidateMarkup()}
-            ${statusMarkup()}
-            <div class="image-redline-actions">
-              <button type="button" class="image-redline-secondary" data-action="recognize" ${
-                !state.sourceCanvas || state.recognitionStatus === "recognizing"
-                  ? "disabled"
-                  : ""
-              }>
-                ${
-                  state.recognitionStatus === "recognizing"
-                    ? "正在识别..."
-                    : "识别候选轮廓"
-                }
-              </button>
-              <button type="button" class="image-redline-primary" data-action="import" ${
-                state.selectedCandidate < 0 ? "disabled" : ""
-              }>导入到地图</button>
-              <button type="button" class="image-redline-quiet" data-action="clear">
-                清除识别结果
-              </button>
-            </div>
             ${state.imported ? editMarkup() : ""}
           </div>
         `
@@ -1044,6 +1081,18 @@ const renderShell = (shell, body) => {
   shell
     .querySelector('[data-action="clear"]')
     ?.addEventListener("click", () => clearImportedResult(body));
+  shell
+    .querySelector('[data-action="expand-import"]')
+    ?.addEventListener("click", () => {
+      state.importPanelCollapsed = false;
+      renderShell(shell, body);
+      syncPortalLayout();
+      window.requestAnimationFrame(() => {
+        shell
+          .querySelector(".image-redline-heading")
+          ?.scrollIntoView({ behavior: "auto", block: "start" });
+      });
+    });
 
   shell.querySelectorAll('input[name="image-redline-candidate"]').forEach((input) => {
     input.addEventListener("change", () => {

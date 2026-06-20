@@ -344,6 +344,88 @@ window.__ARCHICONCEPT_BUILD_INPUT_PREFLIGHT__ = ({
   };
 };
 
+const INPUT_PREFLIGHT_FIELD_TARGETS = {
+  name: { name: "name", section: "id-section-a" },
+  type: { name: "type", section: "id-section-a" },
+  location: { name: "location", section: "id-section-a" },
+  area: { name: "area", section: "id-section-a" },
+  far: { name: "far", section: "id-section-b" },
+  gfa: { name: "gfa", section: "id-section-b" },
+  height: { name: "height", section: "id-section-b" },
+  floors: { name: "floors", section: "id-section-b" },
+  density: { name: "density", section: "id-section-b" },
+  greenery: { name: "greenery", section: "id-section-b" },
+  buildableArea: { name: "buildableArea", section: "id-section-b" },
+  programAndSite: { name: "needs", fallbackName: "siteCondition", section: "id-section-c" },
+  planningRestrictions: { name: "siteCondition", section: "id-section-c" },
+  parking: { name: "siteCondition", section: "id-section-c" },
+  pedestrianFlow: { name: "siteCondition", section: "id-section-c" },
+  accessConditions: { name: "siteCondition", section: "id-section-c" },
+  setback: { name: "siteCondition", section: "id-section-c" },
+  redLineArea: { section: "id-section-site-location" },
+  siteEntrance: { section: "id-section-site-location" },
+  contextAnalysis: { section: "id-section-site-location" }
+};
+
+const locateInputPreflightTarget = (item) => {
+  const config = INPUT_PREFLIGHT_FIELD_TARGETS[item.key] || {};
+  const field =
+    (config.name && document.querySelector(`[name="${config.name}"]`)) ||
+    (config.fallbackName &&
+      document.querySelector(`[name="${config.fallbackName}"]`)) ||
+    (config.selector && document.querySelector(config.selector));
+  const section =
+    document.getElementById(config.section || item.section || "") ||
+    document.getElementById(item.section || "");
+  return { field, section };
+};
+
+const highlightInputPreflightTarget = (item) => {
+  const { field, section } = locateInputPreflightTarget(item);
+  const target = field || section;
+  if (!target) return;
+
+  const highlightTarget = field
+    ? field.closest(".input-preflight-field-target") ||
+      field.parentElement?.parentElement ||
+      field.parentElement ||
+      field
+    : section;
+
+  document
+    .querySelectorAll(".input-preflight-target-highlight")
+    .forEach((element) =>
+      element.classList.remove("input-preflight-target-highlight")
+    );
+
+  window.requestAnimationFrame(() => {
+    const rect = target.getBoundingClientRect();
+    const targetTop =
+      window.scrollY +
+      rect.top -
+      Math.max(88, (window.innerHeight - rect.height) / 2);
+    highlightTarget.classList.add("input-preflight-target-highlight");
+    if (
+      field &&
+      /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(field.tagName) &&
+      !field.disabled
+    ) {
+      field.focus({ preventScroll: true });
+    }
+    window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: Math.max(0, targetTop),
+        left: 0,
+        behavior: "instant"
+      });
+    });
+    window.setTimeout(
+      () => highlightTarget.classList.remove("input-preflight-target-highlight"),
+      1800
+    );
+  });
+};
+
 window.__ARCHICONCEPT_SHOW_INPUT_PREFLIGHT__ = ({
   result,
   onReturn,
@@ -414,6 +496,13 @@ window.__ARCHICONCEPT_SHOW_INPUT_PREFLIGHT__ = ({
         row.className = `input-preflight-row ${
           item.severity === "blocking" ? "is-blocking" : ""
         }`;
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        row.setAttribute(
+          "aria-label",
+          `前往补充${item.field}，当前状态：${item.state}`
+        );
+        row.dataset.preflightKey = item.key;
         const marker = document.createElement("span");
         marker.className = "input-preflight-marker";
         const copy = document.createElement("div");
@@ -424,6 +513,17 @@ window.__ARCHICONCEPT_SHOW_INPUT_PREFLIGHT__ = ({
         impact.textContent = item.impact;
         copy.append(itemTitle, impact);
         row.append(marker, copy);
+        const goToTarget = () => {
+          document.body.style.overflow = previousOverflow;
+          overlay.remove();
+          highlightInputPreflightTarget(item);
+        };
+        row.addEventListener("click", goToTarget);
+        row.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          goToTarget();
+        });
         list.appendChild(row);
       });
       section.appendChild(list);
@@ -592,6 +692,286 @@ assistantHintObserver.observe(document.documentElement, {
 });
 scheduleAssistantHintMerge();
 
+const MAP_DISPLAY_DEFAULTS = {
+  1: {
+    mode: "standard",
+    showOutline: true,
+    showNames: true
+  },
+  2: {
+    mode: "standard",
+    showOutline: true,
+    showNames: true
+  },
+  3: {
+    mode: "standard",
+    showOutline: true,
+    showNames: true
+  },
+  4: {
+    mode: "standard",
+    showOutline: true,
+    showNames: true
+  }
+};
+
+let mapDisplayStep = 1;
+let mapDisplayManual = false;
+let mapDisplaySettings = { ...MAP_DISPLAY_DEFAULTS[1] };
+let mapDisplayMap = null;
+
+const getMapDisplayDefaults = (step = mapDisplayStep) => ({
+  ...(MAP_DISPLAY_DEFAULTS[step] || MAP_DISPLAY_DEFAULTS[1])
+});
+
+const setMapDisplayHostState = () => {
+  const host = document.querySelector(".site-map-display-host");
+  if (!host) return;
+
+  host.dataset.mapDisplayMode = mapDisplaySettings.mode;
+  host.dataset.mapDisplayStep = String(mapDisplayStep);
+  host.classList.toggle("map-show-outline", mapDisplaySettings.showOutline);
+  host.classList.toggle("map-show-names", mapDisplaySettings.showNames);
+};
+
+const applyMapDisplaySettings = () => {
+  setMapDisplayHostState();
+
+  const map = mapDisplayMap || window.__ARCHICONCEPT_MAP__;
+  if (!map) return;
+
+  const style = {
+    focus: "amap://styles/whitesmoke",
+    detail: "amap://styles/grey",
+    standard: "amap://styles/normal"
+  }[mapDisplaySettings.mode] || "amap://styles/normal";
+  try {
+    map.setMapStyle?.(style);
+  } catch (error) {
+    console.warn("Unable to change AMap style", error);
+  }
+
+  const features = ["bg"];
+  if (mapDisplaySettings.showOutline) features.push("road", "building");
+  if (mapDisplaySettings.showNames) features.push("point");
+
+  try {
+    map.setFeatures?.([...new Set(features)]);
+  } catch (error) {
+    console.warn("Unable to change AMap features", error);
+  }
+
+  try {
+    map.setStatus?.({
+      showLabel: mapDisplaySettings.showNames
+    });
+  } catch (error) {
+    console.warn("Unable to change AMap labels", error);
+  }
+};
+
+const updateMapDisplaySettings = (patch, manual = true) => {
+  mapDisplaySettings = { ...mapDisplaySettings, ...patch };
+  if (manual) mapDisplayManual = true;
+  window.__ARCHICONCEPT_MAP_DISPLAY_SETTINGS__ = { ...mapDisplaySettings };
+  applyMapDisplaySettings();
+  syncMapDisplayControls();
+};
+
+const resetMapDisplaySettings = () => {
+  mapDisplayManual = false;
+  mapDisplaySettings = getMapDisplayDefaults();
+  window.__ARCHICONCEPT_MAP_DISPLAY_SETTINGS__ = { ...mapDisplaySettings };
+  applyMapDisplaySettings();
+  syncMapDisplayControls();
+};
+
+const makeMapDisplaySwitch = (key, label) => {
+  const row = document.createElement("label");
+  row.className = "map-display-switch-row";
+
+  const copy = document.createElement("span");
+  copy.textContent = label;
+
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.dataset.mapDisplayKey = key;
+  input.addEventListener("change", () => {
+    updateMapDisplaySettings({ [key]: input.checked });
+  });
+
+  const control = document.createElement("span");
+  control.className = "map-display-switch";
+
+  row.append(copy, input, control);
+  return row;
+};
+
+const closeMapDisplayPanel = () => {
+  document
+    .querySelector(".map-display-control")
+    ?.classList.remove("is-open");
+};
+
+const syncMapDisplayControls = () => {
+  const control = document.querySelector(".map-display-control");
+  if (!control) return;
+
+  control.querySelectorAll("[data-map-mode]").forEach((button) => {
+    const active = button.dataset.mapMode === mapDisplaySettings.mode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+
+  control.querySelectorAll("[data-map-display-key]").forEach((input) => {
+    input.checked = Boolean(mapDisplaySettings[input.dataset.mapDisplayKey]);
+  });
+};
+
+const createMapDisplayControl = (host) => {
+  if (host.querySelector(":scope > .map-display-control")) return;
+
+  const control = document.createElement("div");
+  control.className = "map-display-control";
+  control.addEventListener("click", (event) => event.stopPropagation());
+  control.addEventListener("mousedown", (event) => event.stopPropagation());
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "map-display-trigger";
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.innerHTML = `
+    <span class="map-display-layer-icon" aria-hidden="true"></span>
+    <span>地图显示</span>
+  `;
+
+  const panel = document.createElement("div");
+  panel.className = "map-display-panel";
+  panel.setAttribute("role", "dialog");
+  panel.setAttribute("aria-label", "地图显示设置");
+  panel.innerHTML = `
+    <div class="map-display-panel-head">
+      <div>
+        <strong>地图显示</strong>
+        <span>MAP DISPLAY</span>
+      </div>
+      <button type="button" class="map-display-close" aria-label="关闭地图显示面板">×</button>
+    </div>
+    <section class="map-display-section">
+      <div class="map-display-section-title">底图模式</div>
+      <div class="map-display-modes">
+        <button type="button" data-map-mode="standard">标准</button>
+        <button type="button" data-map-mode="focus">灰度</button>
+        <button type="button" data-map-mode="detail">对比</button>
+      </div>
+      <p class="map-display-mode-help"></p>
+    </section>
+    <section class="map-display-section map-display-switches">
+      <div class="map-display-section-title">显示内容</div>
+    </section>
+    <div class="map-display-degrade-note">
+      名称由底图统一控制，红线、入口和分析点位始终保留。
+    </div>
+    <button type="button" class="map-display-reset">恢复当前步骤默认</button>
+  `;
+
+  const switches = panel.querySelector(".map-display-switches");
+  [
+    ["showOutline", "显示轮廓"],
+    ["showNames", "显示名称"]
+  ].forEach(([key, label]) => {
+    switches.appendChild(makeMapDisplaySwitch(key, label));
+  });
+
+  const modeHelp = panel.querySelector(".map-display-mode-help");
+  const modeCopy = {
+    standard: "使用标准彩色底图，保留普通浏览信息。",
+    focus: "使用灰度底图，降低色彩干扰并突出编辑内容。",
+    detail: "提高底图结构对比，强化建筑与道路轮廓。"
+  };
+
+  panel.querySelectorAll("[data-map-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      updateMapDisplaySettings({ mode: button.dataset.mapMode });
+      modeHelp.textContent = modeCopy[button.dataset.mapMode];
+    });
+  });
+
+  trigger.addEventListener("click", () => {
+    const open = control.classList.toggle("is-open");
+    trigger.setAttribute("aria-expanded", String(open));
+    if (open) {
+      modeHelp.textContent = modeCopy[mapDisplaySettings.mode];
+      syncMapDisplayControls();
+    }
+  });
+  panel
+    .querySelector(".map-display-close")
+    .addEventListener("click", closeMapDisplayPanel);
+  panel
+    .querySelector(".map-display-reset")
+    .addEventListener("click", resetMapDisplaySettings);
+
+  control.append(trigger, panel);
+  host.appendChild(control);
+  syncMapDisplayControls();
+  applyMapDisplaySettings();
+};
+
+const findSiteMapDisplayHost = () => {
+  const mapContainer = document.querySelector(
+    ".amap-container, .amap-maps"
+  );
+  if (!mapContainer) return null;
+
+  const host = mapContainer.closest(
+    "div.w-\\[70\\%\\].relative, div[class*='w-[70%]'][class*='relative']"
+  );
+  return host || mapContainer.parentElement;
+};
+
+const ensureMapDisplayControl = () => {
+  const host = findSiteMapDisplayHost();
+  if (!host) return;
+  host.classList.add("site-map-display-host");
+  createMapDisplayControl(host);
+  setMapDisplayHostState();
+};
+
+window.addEventListener("archiconcept:map-ready", (event) => {
+  mapDisplayMap = event.detail?.map || window.__ARCHICONCEPT_MAP__ || null;
+  mapDisplayManual = false;
+  mapDisplaySettings = getMapDisplayDefaults();
+  window.__ARCHICONCEPT_MAP_DISPLAY_SETTINGS__ = { ...mapDisplaySettings };
+  ensureMapDisplayControl();
+  applyMapDisplaySettings();
+  syncMapDisplayControls();
+});
+
+window.addEventListener("archiconcept:site-editor-state", (event) => {
+  const nextStep = Number(event.detail?.step || 1);
+  if (nextStep !== mapDisplayStep) {
+    mapDisplayStep = nextStep;
+    if (!mapDisplayManual) {
+      mapDisplaySettings = getMapDisplayDefaults(nextStep);
+    }
+  }
+  window.__ARCHICONCEPT_MAP_DISPLAY_SETTINGS__ = { ...mapDisplaySettings };
+  ensureMapDisplayControl();
+  applyMapDisplaySettings();
+  syncMapDisplayControls();
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".map-display-control")) closeMapDisplayPanel();
+});
+
+const mapDisplayObserver = new MutationObserver(ensureMapDisplayControl);
+mapDisplayObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true
+});
+
 const response = await fetch(sourceLink.href);
 if (!response.ok) {
   throw new Error(`Unable to load ARCHICONCEPT app source: HTTP ${response.status}`);
@@ -617,6 +997,19 @@ replaceOnce(
   'id:"site-loc-label"\n,children:"B"',
   "site context section label"
 );
+
+replaceOnce(
+  'n.jsx("div",{className:"w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-white shrink-0",children:n.jsx(kE,{size:16})}),',
+  "",
+  "site editor header icon"
+);
+
+replaceOnce(
+  'children:"数据来源：高德地图"',
+  'children:"数据来源：地图服务"',
+  "site location data source"
+);
+source = source.replaceAll("高德", "地图服务");
 
 replaceOnce(
   'children:"B"}),n.jsxs("div",{children:[n.jsx("h3",{className:"text-[17px] font-semibold text-[#1A1A1A] leading-normal",children:"这个项目受到哪些规划与规模条件约束？"})',
@@ -758,6 +1151,30 @@ replaceOnce(
 );
 
 replaceOnce(
+  'ss.current=null,Kr.current=null',
+  'ss.current=null,Kr.current=null,window.__ARCHICONCEPT_MAP__=null',
+  "map instance cleanup bridge"
+);
+
+replaceOnce(
+  'ss.current=q;try{q.addControl',
+  'ss.current=q,window.__ARCHICONCEPT_MAP__=q,window.dispatchEvent(new CustomEvent("archiconcept:map-ready",{detail:{map:q}}));try{q.addControl',
+  "map instance ready bridge"
+);
+
+replaceOnce(
+  'mapNoiseEffect=k.useEffect(()=>{fe&&ss.current&&ss.current.setMapStyle&&ss.current.setMapStyle("amap://styles/whitesmoke")},[fe]),',
+  'mapNoiseEffect=k.useEffect(()=>{},[fe]),',
+  "remove forced whitesmoke basemap"
+);
+
+replaceOnce(
+  'onClick:()=>setVisiblePoiLayers(T=>({...T,[v.id]:!T[v.id]}))',
+  'onClick:()=>setVisiblePoiLayers({[v.id]:!0})',
+  "single active context POI category"
+);
+
+replaceOnce(
   `},[xs,visiblePoiLayers,qn,Tt]),
 activePoiLayerEffect=`,
   `},[xs,visiblePoiLayers,qn,Tt]),
@@ -786,8 +1203,8 @@ replaceOnce(
 
 replaceOnce(
   '},[We]);const[Gr,hr]=k.useState',
-  '},[We]);k.useEffect(()=>{const v={points:We.map(T=>({lng:T.lng,lat:T.lat})),areaM2:Ws,perimeterM:_i,status:Ce};window.__ARCHICONCEPT_REDLINE_STATE__=v;window.dispatchEvent(new CustomEvent("archiconcept:redline-state",{detail:v}))},[We,Ws,_i,Ce]);const[Gr,hr]=k.useState',
-  "redline state bridge"
+  '},[We]);k.useEffect(()=>{const v={points:We.map(T=>({lng:T.lng,lat:T.lat})),areaM2:Ws,perimeterM:_i,status:Ce};window.__ARCHICONCEPT_REDLINE_STATE__=v;window.dispatchEvent(new CustomEvent("archiconcept:redline-state",{detail:v}))},[We,Ws,_i,Ce]);k.useEffect(()=>{const v=!me?1:Ce!=="\\u5df2\\u786e\\u8ba4"?2:Pt!=="\\u5df2\\u5b8c\\u6210"?3:4,T={step:v,locationConfirmed:!!me,boundaryStatus:Ce,entranceStatus:Pt,contextStatus:Tt,visiblePoiLayers:{...visiblePoiLayers}};window.__ARCHICONCEPT_SITE_EDITOR_STATE__=T;window.dispatchEvent(new CustomEvent("archiconcept:site-editor-state",{detail:T}))},[ie,fe,me,Ce,Pt,Tt,visiblePoiLayers]);const[Gr,hr]=k.useState',
+  "redline and site editor state bridges"
 );
 
 replaceOnce(
