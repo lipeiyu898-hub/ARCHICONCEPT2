@@ -17,8 +17,17 @@ const state = {
   imported: false,
   importPanelCollapsed: false,
   placementConfirmed: false,
-  scale: 100,
-  rotation: 0,
+  transformAngle: 0,
+  transforming: false,
+  editorState: "idle",
+  activeTool: "node",
+  transformOverlays: [],
+  activationOverlays: [],
+  map: window.__ARCHICONCEPT_MAP__ || null,
+  mapEventsBound: false,
+  mapToolbar: null,
+  ignoreBlankMapClickUntil: 0,
+  geometrySignature: "",
   redline: window.__ARCHICONCEPT_REDLINE_STATE__ || {
     points: [],
     areaM2: 0,
@@ -101,8 +110,7 @@ const setImageSource = (canvas, fileName) => {
   state.imported = false;
   state.importPanelCollapsed = false;
   state.placementConfirmed = false;
-  state.scale = 100;
-  state.rotation = 0;
+  state.transformAngle = 0;
   renderActiveShell();
   window.setTimeout(recognizeContours, 40);
 };
@@ -723,39 +731,24 @@ const validateRedline = (points, areaM2, source) => {
   if (!Number.isFinite(areaM2) || areaM2 <= 1)
     return "轮廓面积异常，请调整比例后再确认。";
   if (areaM2 > 100000000) return "轮廓面积异常，请缩小轮廓后再确认。";
-  if (source === "image_import" && !state.placementConfirmed) {
-    return "请先确认红线在地图中的位置、比例和方向。";
-  }
   return "";
+};
+
+const getConfirmDisabledReason = () => {
+  const points = state.redline.points || [];
+  if (!points.length) return "请先绘制或导入用地红线";
+  if (points.length < 3) return "红线至少需要 3 个节点";
+  if (state.editorState === "drawing") return "请先完成红线闭合";
+  return validateRedline(
+    points,
+    state.redline.areaM2,
+    state.redline.source || window.__ARCHICONCEPT_REDLINE_SOURCE__
+  );
 };
 
 window.__ARCHICONCEPT_VALIDATE_REDLINE__ = validateRedline;
 window.__ARCHICONCEPT_REDLINE_SOURCE__ =
   window.__ARCHICONCEPT_REDLINE_SOURCE__ || "manual_draw";
-
-const transformGeoPoints = (points, scalePercent, rotationDegrees) => {
-  if (!points.length) return [];
-  const center = points.reduce(
-    (result, point) => ({
-      lng: result.lng + point.lng / points.length,
-      lat: result.lat + point.lat / points.length
-    }),
-    { lng: 0, lat: 0 }
-  );
-  const latitudeScale = Math.max(0.2, Math.cos((center.lat * Math.PI) / 180));
-  const scale = scalePercent / 100;
-  const angle = (rotationDegrees * Math.PI) / 180;
-  const cosine = Math.cos(angle);
-  const sine = Math.sin(angle);
-  return points.map((point) => {
-    const x = (point.lng - center.lng) * latitudeScale;
-    const y = point.lat - center.lat;
-    return {
-      lng: center.lng + ((x * cosine - y * sine) * scale) / latitudeScale,
-      lat: center.lat + (x * sine + y * cosine) * scale
-    };
-  });
-};
 
 const dispatchImport = (detail) => {
   window.__ARCHICONCEPT_REDLINE_SOURCE__ = "image_import";
@@ -764,6 +757,549 @@ const dispatchImport = (detail) => {
       detail
     })
   );
+};
+
+const dispatchTransform = (phase, points = null) => {
+  window.dispatchEvent(
+    new CustomEvent("archiconcept:redline-transform", {
+      detail: { phase, points }
+    })
+  );
+};
+
+const toPixel = (map, point) => {
+  const lngLat = new window.AMap.LngLat(point.lng, point.lat);
+  const pixel =
+    map.lngLatToContainer?.(lngLat) || map.lngLatToPixel?.(lngLat);
+  return { x: pixel.getX(), y: pixel.getY() };
+};
+
+const toGeoPoint = (map, point) => {
+  const pixel = new window.AMap.Pixel(point.x, point.y);
+  const lngLat =
+    map.containerToLngLat?.(pixel) || map.pixelToLngLat?.(pixel);
+  return { lng: lngLat.getLng(), lat: lngLat.getLat() };
+};
+
+const clearTransformOverlays = () => {
+  const map = state.map || window.__ARCHICONCEPT_MAP__;
+  if (map && state.transformOverlays.length) {
+    try {
+      map.remove(state.transformOverlays);
+    } catch {}
+  }
+  state.transformOverlays = [];
+};
+
+const clearActivationOverlays = () => {
+  const map = state.map || window.__ARCHICONCEPT_MAP__;
+  if (map && state.activationOverlays.length) {
+    try {
+      map.remove(state.activationOverlays);
+    } catch {}
+  }
+  state.activationOverlays = [];
+};
+
+const setActiveTool = (tool) => {
+  const points = state.redline.points || [];
+  if (points.length < 3 || state.redline.status === "已确认") return;
+  const nextTool =
+    tool === "freeTransform" && state.activeTool === "freeTransform"
+      ? "node"
+      : tool;
+  state.activeTool = nextTool;
+  state.editorState =
+    nextTool === "freeTransform" ? "freeTransform" : "polygonEditing";
+  state.ignoreBlankMapClickUntil = performance.now() + 180;
+  const nativeMode = {
+    node: "node",
+    insert: "insert",
+    delete: "delete",
+    freeTransform: "freeTransform"
+  }[nextTool];
+  if (nativeMode) {
+    window.dispatchEvent(
+      new CustomEvent("archiconcept:redline-mode", {
+        detail: { mode: nativeMode }
+      })
+    );
+  }
+  renderMapEditingOverlays();
+  renderMapToolbar();
+  renderActiveShell();
+};
+
+const startMapTransform = (kind, startEvent, cornerIndex = 0) => {
+  const map = state.map || window.__ARCHICONCEPT_MAP__;
+  const points = state.redline.points || [];
+  if (!map || !window.AMap || points.length < 3) return;
+
+  startEvent.originEvent?.preventDefault?.();
+  startEvent.originEvent?.stopPropagation?.();
+  const originalPixels = points.map((point) => toPixel(map, point));
+  const bounds = originalPixels.reduce(
+    (result, point) => ({
+      minX: Math.min(result.minX, point.x),
+      minY: Math.min(result.minY, point.y),
+      maxX: Math.max(result.maxX, point.x),
+      maxY: Math.max(result.maxY, point.y)
+    }),
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  );
+  const center = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2
+  };
+  const startPixel = toPixel(map, {
+    lng: startEvent.lnglat.getLng(),
+    lat: startEvent.lnglat.getLat()
+  });
+  const startGeo = {
+    lng: startEvent.lnglat.getLng(),
+    lat: startEvent.lnglat.getLat()
+  };
+  const geoCenter = {
+    lng: points.reduce((sum, point) => sum + point.lng, 0) / points.length,
+    lat: points.reduce((sum, point) => sum + point.lat, 0) / points.length
+  };
+  const latitudeScale = Math.max(
+    0.2,
+    Math.cos((geoCenter.lat * Math.PI) / 180)
+  );
+  const transformGeo = (scale, angle) => {
+    const cosine = Math.cos(angle);
+    const sine = Math.sin(angle);
+    return points.map((point) => {
+      const x = (point.lng - geoCenter.lng) * latitudeScale * scale;
+      const y = (point.lat - geoCenter.lat) * scale;
+      return {
+        lng: geoCenter.lng + (x * cosine - y * sine) / latitudeScale,
+        lat: geoCenter.lat + x * sine + y * cosine
+      };
+    });
+  };
+  const startDistance = Math.max(
+    1,
+    Math.hypot(startPixel.x - center.x, startPixel.y - center.y)
+  );
+  const startAngle = Math.atan2(
+    startPixel.y - center.y,
+    startPixel.x - center.x
+  );
+  state.transforming = true;
+  state.editorState = "freeTransform";
+  state.placementConfirmed = false;
+  dispatchTransform("start");
+  map.setStatus?.({ dragEnable: false });
+
+  let pendingPoints = points;
+  let frame = 0;
+  const update = (event) => {
+    const originEvent = event.originEvent || event;
+    const mapRect = map.getContainer().getBoundingClientRect();
+    const eventLngLat =
+      event.lnglat ||
+      map.containerToLngLat(
+        new window.AMap.Pixel(
+          originEvent.clientX - mapRect.left,
+          originEvent.clientY - mapRect.top
+        )
+      );
+    const current = toPixel(map, {
+      lng: eventLngLat.getLng(),
+      lat: eventLngLat.getLat()
+    });
+    if (kind === "move") {
+      const currentGeo = {
+        lng: eventLngLat.getLng(),
+        lat: eventLngLat.getLat()
+      };
+      const deltaLng = currentGeo.lng - startGeo.lng;
+      const deltaLat = currentGeo.lat - startGeo.lat;
+      pendingPoints = points.map((point) => ({
+        lng: point.lng + deltaLng,
+        lat: point.lat + deltaLat
+      }));
+    } else if (kind === "scale") {
+      const distance = Math.max(
+        1,
+        Math.hypot(current.x - center.x, current.y - center.y)
+      );
+      const scale = Math.max(0.05, Math.min(20, distance / startDistance));
+      pendingPoints = transformGeo(scale, 0);
+    } else if (kind === "rotate") {
+      const angle =
+        Math.atan2(current.y - center.y, current.x - center.x) - startAngle;
+      state.transformAngle = Math.round((angle * 180) / Math.PI);
+      pendingPoints = transformGeo(1, angle);
+    }
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(() => {
+      dispatchTransform("update", pendingPoints);
+      renderActiveShell();
+    });
+  };
+  const finish = () => {
+    window.removeEventListener("mousemove", update);
+    window.removeEventListener("mouseup", finish);
+    cancelAnimationFrame(frame);
+    dispatchTransform("end", pendingPoints);
+    state.transforming = false;
+    state.transformAngle = 0;
+    map.setStatus?.({ dragEnable: true });
+    window.setTimeout(renderMapEditingOverlays, 30);
+  };
+
+  window.addEventListener("mousemove", update);
+  window.addEventListener("mouseup", finish, { once: true });
+};
+
+const makeTransformHandle = (map, point, className, label, onMouseDown) => {
+  const marker = new window.AMap.Marker({
+    position: new window.AMap.LngLat(point.lng, point.lat),
+    content: `<button type="button" class="${className}" aria-label="${label}"></button>`,
+    offset: new window.AMap.Pixel(-9, -9),
+    zIndex: 122,
+    bubble: false,
+    map
+  });
+  marker.on("mousedown", onMouseDown);
+  return marker;
+};
+
+const renderFreeTransform = () => {
+  if (state.transforming) return;
+  clearTransformOverlays();
+  const map = state.map || window.__ARCHICONCEPT_MAP__;
+  const points = state.redline.points || [];
+  if (
+    !map ||
+    !window.AMap ||
+    points.length < 3 ||
+    state.redline.status === "已确认" ||
+    state.activeTool !== "freeTransform"
+  ) {
+    return;
+  }
+  state.map = map;
+  const pixels = points.map((point) => toPixel(map, point));
+  const bounds = pixels.reduce(
+    (result, point) => ({
+      minX: Math.min(result.minX, point.x),
+      minY: Math.min(result.minY, point.y),
+      maxX: Math.max(result.maxX, point.x),
+      maxY: Math.max(result.maxY, point.y)
+    }),
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  );
+  const cornersPx = [
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.maxY },
+    { x: bounds.minX, y: bounds.maxY }
+  ];
+  const corners = cornersPx.map((point) => toGeoPoint(map, point));
+  const topCenterPx = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: bounds.minY
+  };
+  const centerPx = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2
+  };
+  const rotatePx = { x: topCenterPx.x, y: topCenterPx.y - 38 };
+  const topCenter = toGeoPoint(map, topCenterPx);
+  const rotatePoint = toGeoPoint(map, rotatePx);
+  const centerPoint = toGeoPoint(map, centerPx);
+
+  const box = new window.AMap.Polyline({
+    path: [...corners, corners[0]].map(
+      (point) => new window.AMap.LngLat(point.lng, point.lat)
+    ),
+    strokeColor: "#111827",
+    strokeOpacity: 0.82,
+    strokeWeight: 1.5,
+    strokeStyle: "dashed",
+    zIndex: 118,
+    map
+  });
+  const rotateLine = new window.AMap.Polyline({
+    path: [topCenter, rotatePoint].map(
+      (point) => new window.AMap.LngLat(point.lng, point.lat)
+    ),
+    strokeColor: "#111827",
+    strokeOpacity: 0.65,
+    strokeWeight: 1.5,
+    zIndex: 119,
+    map
+  });
+  const moveWidth = Math.max(28, bounds.maxX - bounds.minX - 22);
+  const moveHeight = Math.max(28, bounds.maxY - bounds.minY - 22);
+  const moveSurface = document.createElement("div");
+  moveSurface.className = "redline-transform-move-surface";
+  moveSurface.style.width = `${moveWidth}px`;
+  moveSurface.style.height = `${moveHeight}px`;
+  moveSurface.setAttribute("aria-label", "拖动整体红线");
+  moveSurface.addEventListener("mousedown", (originEvent) => {
+    const rect = map.getContainer().getBoundingClientRect();
+    const lnglat = map.containerToLngLat(
+      new window.AMap.Pixel(
+        originEvent.clientX - rect.left,
+        originEvent.clientY - rect.top
+      )
+    );
+    startMapTransform("move", { originEvent, lnglat });
+  });
+  const mover = new window.AMap.Marker({
+    position: new window.AMap.LngLat(centerPoint.lng, centerPoint.lat),
+    content: moveSurface,
+    offset: new window.AMap.Pixel(-moveWidth / 2, -moveHeight / 2),
+    bubble: false,
+    zIndex: 80,
+    map
+  });
+
+  const handles = corners.map((point, index) =>
+    makeTransformHandle(
+      map,
+      point,
+      "redline-transform-handle is-scale",
+      `缩放控制点 ${index + 1}`,
+      (event) => startMapTransform("scale", event, index)
+    )
+  );
+  const rotateHandle = makeTransformHandle(
+    map,
+    rotatePoint,
+    "redline-transform-handle is-rotate",
+    "旋转控制点",
+    (event) => startMapTransform("rotate", event)
+  );
+  state.transformOverlays = [
+    box,
+    rotateLine,
+    mover,
+    ...handles,
+    rotateHandle
+  ];
+};
+
+const renderTransformActivationOverlay = () => {
+  clearActivationOverlays();
+  const map = state.map || window.__ARCHICONCEPT_MAP__;
+  const points = state.redline.points || [];
+  if (
+    !map ||
+    !window.AMap ||
+    points.length < 3 ||
+    state.redline.status === "已确认" ||
+    state.activeTool === "freeTransform"
+  ) {
+    return;
+  }
+  const activation = new window.AMap.Polygon({
+    path: points.map((point) => new window.AMap.LngLat(point.lng, point.lat)),
+    fillColor: "#111827",
+    fillOpacity: 0.001,
+    strokeColor: "#111827",
+    strokeOpacity: 0.001,
+    strokeWeight: 10,
+    cursor: "pointer",
+    bubble: false,
+    zIndex: 62,
+    map
+  });
+  activation.on("click", (event) => {
+    if (performance.now() <= state.ignoreBlankMapClickUntil) return;
+    event.originEvent?.preventDefault?.();
+    event.originEvent?.stopPropagation?.();
+    setActiveTool("freeTransform");
+  });
+  state.activationOverlays = [activation];
+};
+
+const renderMapEditingOverlays = () => {
+  clearTransformOverlays();
+  clearActivationOverlays();
+  if (state.activeTool === "freeTransform") renderFreeTransform();
+  else renderTransformActivationOverlay();
+};
+
+const flipRedline = (axis) => {
+  const points = state.redline.points || [];
+  if (points.length < 3) return;
+  const center = {
+    lng: points.reduce((sum, point) => sum + point.lng, 0) / points.length,
+    lat: points.reduce((sum, point) => sum + point.lat, 0) / points.length
+  };
+  const latitudeScale = Math.max(
+    0.2,
+    Math.cos((center.lat * Math.PI) / 180)
+  );
+  const flipped = points.map((point) => {
+    const x = (point.lng - center.lng) * latitudeScale;
+    const y = point.lat - center.lat;
+    return {
+      lng:
+        center.lng +
+        (axis === "horizontal" ? -x : x) / latitudeScale,
+      lat: center.lat + (axis === "vertical" ? -y : y)
+    };
+  });
+  state.placementConfirmed = false;
+  dispatchTransform("start");
+  dispatchTransform("update", flipped);
+  dispatchTransform("end", flipped);
+};
+
+const completeCurrentRedline = () => {
+  const body = state.activeBody;
+  if (!body) return false;
+  if (state.redline.status === "待确认") return true;
+  return runNativeEditorAction(body, "完成闭合");
+};
+
+const confirmCurrentRedline = () => {
+  const body = state.activeBody;
+  if (!body) return;
+  const error = getConfirmDisabledReason();
+  if (error) {
+    setMessage("", error);
+    return;
+  }
+  const confirm = () => {
+    if (!clickNativeButton(body, "确认用地红线")) {
+      setMessage("", "请先完成闭合，再确认用地红线。");
+    }
+  };
+  if (state.redline.status === "待确认") confirm();
+  else if (completeCurrentRedline()) window.setTimeout(confirm, 80);
+};
+
+const syncMapToolbarLayout = () => {
+  const toolbar = state.mapToolbar;
+  const map = state.map || window.__ARCHICONCEPT_MAP__;
+  if (!toolbar || !map) return;
+  const rect = map.getContainer().getBoundingClientRect();
+  toolbar.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
+  toolbar.style.top = `${Math.round(rect.bottom - 18)}px`;
+  toolbar.style.maxWidth = `${Math.round(rect.width * 0.8)}px`;
+};
+
+const renderMapToolbar = () => {
+  const points = state.redline.points || [];
+  const shouldShow =
+    points.length > 0 &&
+    state.redline.status !== "已确认" &&
+    Boolean(state.activeBody?.isConnected);
+  if (!shouldShow) {
+    state.mapToolbar?.remove();
+    state.mapToolbar = null;
+    return;
+  }
+  let toolbar = state.mapToolbar;
+  if (!toolbar?.isConnected) {
+    toolbar = document.createElement("div");
+    toolbar.className = "redline-map-toolbar";
+    document.body.appendChild(toolbar);
+    state.mapToolbar = toolbar;
+  }
+  const validationError = getConfirmDisabledReason();
+  const isDrawing = state.editorState === "drawing";
+  const canTransform = points.length >= 3 && !isDrawing;
+  const freeActive = state.activeTool === "freeTransform";
+  toolbar.innerHTML = `
+    <div class="redline-map-toolbar-group" aria-label="历史操作">
+      <button type="button" data-toolbar-action="undo">撤销</button>
+      <button type="button" data-toolbar-action="redo">重做</button>
+    </div>
+    <span class="redline-map-toolbar-divider"></span>
+    <div class="redline-map-toolbar-group" aria-label="编辑工具">
+      <button type="button" data-toolbar-tool="node" class="${
+        state.activeTool === "node" ? "is-active" : ""
+      }">节点编辑</button>
+      <button type="button" data-toolbar-tool="insert" class="${
+        state.activeTool === "insert" ? "is-active" : ""
+      }">边线加点</button>
+      <button type="button" data-toolbar-tool="delete" class="${
+        state.activeTool === "delete" ? "is-active" : ""
+      }">删除节点</button>
+      <button type="button" data-toolbar-tool="freeTransform" class="${
+        freeActive ? "is-active" : ""
+      }" aria-pressed="${freeActive}" ${canTransform ? "" : "disabled"} title="${
+        canTransform ? "" : "请先完成红线闭合"
+      }">
+        ${freeActive ? "完成变换" : "自由变换"}
+      </button>
+    </div>
+    <span class="redline-map-toolbar-divider"></span>
+    <div class="redline-map-toolbar-group" aria-label="变换操作">
+      <button type="button" data-toolbar-action="flip-horizontal" ${
+        canTransform ? "" : "disabled"
+      } title="${canTransform ? "" : "请先完成红线闭合"}">水平翻转</button>
+      <button type="button" data-toolbar-action="flip-vertical" ${
+        canTransform ? "" : "disabled"
+      } title="${canTransform ? "" : "请先完成红线闭合"}">垂直翻转</button>
+    </div>
+    <span class="redline-map-toolbar-divider"></span>
+    <div class="redline-map-toolbar-group is-confirm" aria-label="确认操作">
+      ${
+        isDrawing
+          ? `<button type="button" data-toolbar-action="complete" ${
+              points.length >= 3 ? "" : "disabled"
+            } title="${
+              points.length >= 3 ? "" : "至少添加 3 个节点后才能闭合"
+            }">完成闭合</button>`
+          : ""
+      }
+      <span class="redline-toolbar-tooltip" title="${validationError}">
+        <button type="button" class="is-primary" data-toolbar-action="confirm" ${
+          validationError ? "disabled" : ""
+        }>确认用地红线</button>
+      </span>
+    </div>
+  `;
+  toolbar.querySelectorAll("[data-toolbar-tool]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tool = button.dataset.toolbarTool;
+      if (tool === "freeTransform") {
+        setActiveTool("freeTransform");
+        return;
+      }
+      setActiveTool(tool);
+      const action = {
+        node: "节点编辑",
+        insert: "边线加点",
+        delete: "删除节点"
+      }[tool];
+      action && runNativeEditorAction(state.activeBody, action);
+    });
+  });
+  toolbar.querySelectorAll("[data-toolbar-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.toolbarAction;
+      if (
+        [
+          "undo",
+          "redo",
+          "flip-horizontal",
+          "flip-vertical",
+          "complete",
+          "confirm"
+        ].includes(action)
+      ) {
+        if (state.activeTool === "freeTransform") setActiveTool("node");
+      }
+      if (action === "undo") runNativeEditorAction(state.activeBody, "撤销");
+      if (action === "redo") runNativeEditorAction(state.activeBody, "重做");
+      if (action === "flip-horizontal") flipRedline("horizontal");
+      if (action === "flip-vertical") flipRedline("vertical");
+      if (action === "complete") completeCurrentRedline();
+      if (action === "confirm") confirmCurrentRedline();
+    });
+  });
+  syncMapToolbarLayout();
 };
 
 const focusImportedMapEdit = () => {
@@ -786,8 +1322,7 @@ const importSelectedCandidate = () => {
   state.imported = true;
   state.importPanelCollapsed = true;
   state.placementConfirmed = false;
-  state.scale = 100;
-  state.rotation = 0;
+  state.transformAngle = 0;
   state.message = "候选轮廓已导入地图。请调整位置、比例和方向后确认。";
   state.error = "";
   dispatchImport({
@@ -810,18 +1345,28 @@ const clickNativeButton = (body, label) => {
   return true;
 };
 
+const resetImageImportState = () => {
+  state.fileName = "";
+  state.sourceCanvas = null;
+  state.candidates = [];
+  state.selectedCandidate = -1;
+  state.recognitionStatus = "idle";
+  state.message = "";
+  state.error = "";
+  state.imported = false;
+  state.importPanelCollapsed = false;
+  state.placementConfirmed = false;
+  state.transformAngle = 0;
+};
+
 const clearImportedResult = (body) => {
   const clearButton = [...body.querySelectorAll("button")].find(
     (button) => text(button) === "清除红线"
   );
   if (clearButton && !clearButton.disabled) clearButton.click();
-  state.imported = false;
-  state.importPanelCollapsed = false;
-  state.placementConfirmed = false;
-  state.scale = 100;
-  state.rotation = 0;
+  resetImageImportState();
   window.__ARCHICONCEPT_REDLINE_SOURCE__ = "manual_draw";
-  setMessage("识别结果已清除。");
+  renderActiveShell();
 };
 
 const drawPreview = (canvas) => {
@@ -901,171 +1446,226 @@ const candidateMarkup = () => {
   `;
 };
 
-const editMarkup = () => {
+const editMarkup = (showClearAction = true) => {
   const redline = state.redline || {};
-  const validationError = validateRedline(
-    redline.points || [],
-    redline.areaM2,
-    "image_import"
-  );
+  const displayStatus =
+    state.editorState === "drawing"
+      ? "绘制中"
+      : redline.status === "已确认"
+        ? "已确认"
+        : "待确认";
   return `
     <div class="image-redline-map-edit">
       <div class="image-redline-map-heading">
-        <div>
-          <strong>地图编辑与确认</strong>
-          <span>导入后使用现有红线节点结构继续编辑</span>
-        </div>
-        <span class="image-redline-badge">${redline.status || "编辑中"}</span>
+        <strong>当前红线</strong>
       </div>
       <div class="image-redline-metrics">
         <span>面积 <strong>${Math.round(redline.areaM2 || 0).toLocaleString()} ㎡</strong></span>
         <span>周长 <strong>${Math.round(redline.perimeterM || 0).toLocaleString()} m</strong></span>
         <span>节点 <strong>${(redline.points || []).length} 个</strong></span>
+        <span>状态 <strong>${displayStatus}</strong></span>
       </div>
-      <div class="image-redline-tool-grid">
-        <button type="button" data-native-action="节点编辑">节点微调</button>
-        <button type="button" data-native-action="边线加点">边线上增加节点</button>
-        <button type="button" data-native-action="整体移动">整体拖动位置</button>
-        <button type="button" data-native-action="删除节点">删除节点</button>
-        <button type="button" data-native-action="撤销">撤销</button>
-        <button type="button" data-native-action="重做">重做</button>
-      </div>
-      <div class="image-redline-transform">
-        <label>
-          <span>整体缩放 <strong>${state.scale}%</strong></span>
-          <input type="range" data-transform="scale" min="40" max="220" step="1" value="${state.scale}">
-        </label>
-        <label>
-          <span>整体旋转 <strong>${state.rotation}°</strong></span>
-          <input type="range" data-transform="rotation" min="-180" max="180" step="1" value="${state.rotation}">
-        </label>
-        <button type="button" class="image-redline-secondary" data-action="apply-transform">
-          应用缩放与旋转
-        </button>
-      </div>
-      <label class="image-redline-confirm-placement">
-        <input type="checkbox" data-action="confirm-placement" ${
-          state.placementConfirmed ? "checked" : ""
-        }>
-        <span>我已在地图中确认位置、比例和方向</span>
-      </label>
       ${
-        validationError
-          ? `<div class="image-redline-validation">${validationError}</div>`
+        showClearAction
+          ? `<button type="button" class="image-redline-quiet image-redline-clear-current" data-action="clear-current">清除红线</button>`
           : ""
       }
-      <div class="image-redline-final-actions">
-        <button type="button" class="image-redline-secondary" data-action="complete">
-          完成闭合
-        </button>
-        <button type="button" class="image-redline-primary" data-action="confirm" ${
-          validationError ? "disabled" : ""
-        }>
-          确认用地红线
-        </button>
-      </div>
     </div>
   `;
 };
 
-const renderShell = (shell, body) => {
-  shell.innerHTML = `
-    <div class="image-redline-mode-tabs" role="tablist" aria-label="红线创建方式">
-      <button type="button" role="tab" data-mode="manual" aria-selected="${
-        state.mode === "manual"
-      }" class="${state.mode === "manual" ? "is-active" : ""}">手动绘制</button>
-      <button type="button" role="tab" data-mode="image" aria-selected="${
-        state.mode === "image"
-      }" class="${state.mode === "image" ? "is-active" : ""}">图片识别导入</button>
-    </div>
-    ${
-      state.mode === "image"
-        ? `
-          <div class="image-redline-panel ${
-            state.imported && state.importPanelCollapsed
-              ? "is-import-collapsed"
-              : ""
-          }">
-            <div class="image-redline-heading">
-              <h4>上传图片识别红线</h4>
-              <p>适用于已有场地图、红线图或任务书截图。系统将识别候选轮廓，用户调整位置与比例后确认用地红线。</p>
+const runNativeEditorAction = (body, action) => {
+  const modeByAction = {
+    节点编辑: "node",
+    边线加点: "insert",
+    整体移动: "move",
+    删除节点: "delete"
+  };
+  if (modeByAction[action]) {
+    window.dispatchEvent(
+      new CustomEvent("archiconcept:redline-mode", {
+        detail: { mode: modeByAction[action] }
+      })
+    );
+  }
+  if (clickNativeButton(body, action)) return true;
+  const reEdit = findNativeButton(body, "重新编辑");
+  if (!reEdit || reEdit.disabled) return Boolean(modeByAction[action]);
+  reEdit.click();
+  window.setTimeout(() => clickNativeButton(body, action), 50);
+  return true;
+};
+
+const acquisitionMarkup = (hasEditableRedline) => {
+  const source =
+    state.redline.source ||
+    window.__ARCHICONCEPT_REDLINE_SOURCE__ ||
+    "manual_draw";
+  if (hasEditableRedline) {
+    const imageSource = source === "image_import";
+    return `
+      <div class="image-redline-import-summary">
+        <div>
+          <strong>${imageSource ? "图片轮廓已导入地图" : "手动绘制轮廓已生成"}</strong>
+          <span>${
+            imageSource
+              ? `${state.fileName || "已识别图片"} · 已进入统一地图编辑`
+              : "闭合多边形已进入统一地图编辑"
+          }</span>
+        </div>
+        <button type="button" class="image-redline-secondary" data-action="${
+          imageSource
+            ? state.importPanelCollapsed
+              ? "expand-import"
+              : "collapse-import"
+            : "restart-acquisition"
+        }">
+          ${
+            imageSource
+              ? state.importPanelCollapsed
+                ? "查看识别结果"
+                : "收起识别结果"
+              : "重新绘制"
+          }
+        </button>
+      </div>
+      ${
+        imageSource && !state.importPanelCollapsed
+          ? `
+            <div class="image-redline-acquisition-detail">
+              ${
+                state.sourceCanvas
+                  ? `<div class="image-redline-preview"><canvas data-role="preview" aria-label="上传图片与候选轮廓预览"></canvas></div>`
+                  : ""
+              }
+              ${candidateMarkup()}
+              ${statusMarkup()}
+              <div class="image-redline-actions">
+                <button type="button" class="image-redline-secondary" data-action="recognize">重新识别候选</button>
+                <button type="button" class="image-redline-primary" data-action="import" ${
+                  state.selectedCandidate < 0 ? "disabled" : ""
+                }>重新导入所选轮廓</button>
+              </div>
             </div>
-            ${
-              state.imported && state.importPanelCollapsed
-                ? `
-                  <div class="image-redline-import-summary">
-                    <div>
-                      <strong>图片轮廓已导入地图</strong>
-                      <span>${state.fileName || "已识别图片"} · 可在下方继续编辑与确认</span>
-                    </div>
-                    <button type="button" class="image-redline-secondary" data-action="expand-import">
-                      展开图片识别
-                    </button>
-                  </div>
-                `
-                : `
-                  <div class="image-redline-upload">
-                    <input type="file" data-role="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
-                    <div>
-                      <strong>${state.fileName || "支持 JPG、PNG、PDF 第一页"}</strong>
-                      <span>文件上限 15 MB，优先使用线条清晰、对比明确的图纸</span>
-                    </div>
-                    <button type="button" class="image-redline-secondary" data-action="upload">上传图片</button>
-                  </div>
-                  ${
-                    state.sourceCanvas
-                      ? `
-                        <div class="image-redline-preview">
-                          <canvas data-role="preview" aria-label="上传图片与候选轮廓预览"></canvas>
-                        </div>
-                      `
-                      : ""
-                  }
-                  ${candidateMarkup()}
-                  ${statusMarkup()}
-                  <div class="image-redline-actions">
-                    <button type="button" class="image-redline-secondary" data-action="recognize" ${
-                      !state.sourceCanvas ||
-                      state.recognitionStatus === "recognizing"
-                        ? "disabled"
-                        : ""
-                    }>
-                      ${
-                        state.recognitionStatus === "recognizing"
-                          ? "正在识别..."
-                          : "识别候选轮廓"
-                      }
-                    </button>
-                    <button type="button" class="image-redline-primary" data-action="import" ${
-                      state.selectedCandidate < 0 ? "disabled" : ""
-                    }>导入到地图</button>
-                    <button type="button" class="image-redline-quiet" data-action="clear">
-                      清除识别结果
-                    </button>
-                  </div>
-                `
-            }
-            ${state.imported ? editMarkup() : ""}
+          `
+          : ""
+      }
+    `;
+  }
+  if (state.mode === "manual") {
+    const hasPoints = (state.redline.points || []).length > 0;
+    return `
+      <div class="image-redline-heading">
+        <h4>手动绘制红线</h4>
+        <p>在地图上逐点绘制红线，双击或点击首点完成闭合。</p>
+      </div>
+      <div class="image-redline-manual-actions">
+        <button type="button" class="image-redline-primary" data-action="manual-draw">
+          ${hasPoints ? "重新绘制" : "开始绘制红线"}
+        </button>
+        ${
+          hasPoints
+            ? `<button type="button" class="image-redline-quiet" data-action="clear-current">清除红线</button>`
+            : ""
+        }
+      </div>
+    `;
+  }
+  return `
+    <input type="file" data-role="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" hidden>
+    ${
+      !state.sourceCanvas
+        ? `
+          <div class="image-redline-heading">
+            <h4>图片识别导入</h4>
+            <p>上传线条清晰的场地图，选择轮廓并导入地图。支持 JPG、PNG、PDF，文件上限 15 MB。</p>
+          </div>
+          <div class="image-redline-manual-actions">
+            <button type="button" class="image-redline-primary" data-action="upload">上传图片</button>
+          </div>
+        `
+        : `
+          <div class="image-redline-import-summary">
+            <div>
+              <strong>${state.fileName || "已上传图片"}</strong>
+              <span>选择候选轮廓后导入地图</span>
+            </div>
+            <button type="button" class="image-redline-secondary" data-action="upload">重新上传</button>
+          </div>
+          <div class="image-redline-preview"><canvas data-role="preview" aria-label="上传图片与候选轮廓预览"></canvas></div>
+        `
+    }
+    ${candidateMarkup()}
+    ${statusMarkup()}
+    ${
+      state.sourceCanvas
+        ? `
+          <div class="image-redline-actions">
+            <button type="button" class="image-redline-secondary" data-action="recognize" ${
+              state.recognitionStatus === "recognizing" ? "disabled" : ""
+            }>${
+              state.recognitionStatus === "recognizing"
+                ? "正在识别..."
+                : "识别候选轮廓"
+            }</button>
+            <button type="button" class="image-redline-primary" data-action="import" ${
+              state.selectedCandidate < 0 ? "disabled" : ""
+            }>导入到地图</button>
+            <button type="button" class="image-redline-quiet" data-action="clear">清除识别结果</button>
           </div>
         `
         : ""
+    }
+  `;
+};
+
+const renderShell = (shell, body) => {
+  const isConfirmed = state.redline.status === "已确认";
+  const pointCount = (state.redline.points || []).length;
+  const hasAnyRedline = pointCount > 0 && !isConfirmed;
+  const hasEditableRedline =
+    pointCount >= 3 &&
+    state.editorState !== "drawing" &&
+    !isConfirmed;
+  body.classList.toggle("redline-unified-edit-mode", !isConfirmed);
+  body.classList.remove("redline-image-mode");
+  shell.innerHTML = `
+    <div class="image-redline-mode-tabs" role="tablist" aria-label="红线获取方式">
+      <button type="button" role="tab" data-mode="manual" aria-selected="${
+        state.mode === "manual"
+      }" class="${state.mode === "manual" ? "is-active" : ""}" ${
+        hasAnyRedline ? "disabled" : ""
+      }>手动绘制</button>
+      <button type="button" role="tab" data-mode="image" aria-selected="${
+        state.mode === "image"
+      }" class="${state.mode === "image" ? "is-active" : ""}" ${
+        hasAnyRedline ? "disabled" : ""
+      }>图片识别导入</button>
+    </div>
+    ${
+      isConfirmed
+        ? ""
+        : `<div class="image-redline-panel ${
+            hasEditableRedline ? "is-unified-edit" : "is-acquisition"
+          }">
+            ${acquisitionMarkup(hasEditableRedline)}
+            ${hasAnyRedline ? editMarkup(hasEditableRedline) : ""}
+          </div>`
     }
   `;
 
   shell.querySelectorAll("[data-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       state.mode = button.dataset.mode;
-      body.classList.toggle("redline-image-mode", state.mode === "image");
-      body.style.paddingTop = state.mode === "manual" ? "62px" : "16px";
-      if (state.mode === "manual") {
-        body.style.removeProperty("min-height");
-      }
+      const hasEditableRedline =
+        (state.redline.points || []).length >= 3 &&
+        state.redline.status !== "已确认";
+      body.style.paddingTop =
+        state.redline.status === "已确认" ? "62px" : "16px";
       renderShell(shell, body);
       syncPortalLayout();
     });
   });
-
-  if (state.mode !== "image") return;
 
   const fileInput = shell.querySelector('[data-role="file"]');
   shell.querySelector('[data-action="upload"]')?.addEventListener("click", () =>
@@ -1087,11 +1687,35 @@ const renderShell = (shell, body) => {
       state.importPanelCollapsed = false;
       renderShell(shell, body);
       syncPortalLayout();
-      window.requestAnimationFrame(() => {
-        shell
-          .querySelector(".image-redline-heading")
-          ?.scrollIntoView({ behavior: "auto", block: "start" });
-      });
+    });
+  shell
+    .querySelector('[data-action="collapse-import"]')
+    ?.addEventListener("click", () => {
+      state.importPanelCollapsed = true;
+      renderShell(shell, body);
+      syncPortalLayout();
+    });
+  shell
+    .querySelector('[data-action="restart-acquisition"]')
+    ?.addEventListener("click", () => {
+      const clearButton = findNativeButton(body, "清除红线");
+      clearButton?.click();
+      state.placementConfirmed = false;
+      window.__ARCHICONCEPT_REDLINE_SOURCE__ = "manual_draw";
+    });
+  shell
+    .querySelector('[data-action="manual-draw"]')
+    ?.addEventListener("click", () => {
+      const hasPoints = (state.redline.points || []).length > 0;
+      if (hasPoints) {
+        findNativeButton(body, "清除红线")?.click();
+        window.setTimeout(
+          () => findNativeButton(body, "开始绘制红线")?.click(),
+          50
+        );
+      } else {
+        findNativeButton(body, "开始绘制红线")?.click();
+      }
     });
 
   shell.querySelectorAll('input[name="image-redline-candidate"]').forEach((input) => {
@@ -1103,74 +1727,18 @@ const renderShell = (shell, body) => {
     });
   });
 
-  shell.querySelectorAll("[data-native-action]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (!clickNativeButton(body, button.dataset.nativeAction)) {
-        setMessage("", "当前状态下暂不能执行该编辑操作。");
-      }
-      if (button.dataset.nativeAction === "整体移动") {
-        state.placementConfirmed = false;
-      }
-    });
-  });
-
-  shell.querySelector('[data-transform="scale"]')?.addEventListener("input", (event) => {
-    state.scale = Number(event.target.value);
-    state.placementConfirmed = false;
-    renderShell(shell, body);
-  });
   shell
-    .querySelector('[data-transform="rotation"]')
-    ?.addEventListener("input", (event) => {
-      state.rotation = Number(event.target.value);
-      state.placementConfirmed = false;
-      renderShell(shell, body);
-    });
-  shell
-    .querySelector('[data-action="apply-transform"]')
+    .querySelector('[data-action="clear-current"]')
     ?.addEventListener("click", () => {
-      if (!state.redline.points?.length) {
-        setMessage("", "轮廓导入地图失败，请重新导入候选轮廓。");
-        return;
-      }
-      const points = transformGeoPoints(
-        state.redline.points,
-        state.scale,
-        state.rotation
-      );
-      state.scale = 100;
-      state.rotation = 0;
+      const clearButton = findNativeButton(body, "清除红线");
+      clearButton?.click();
       state.placementConfirmed = false;
-      dispatchImport({ geoPoints: points });
-      setMessage("已应用整体缩放与旋转，请继续核对地图位置。");
+      state.activeTool = "node";
     });
-  shell
-    .querySelector('[data-action="confirm-placement"]')
-    ?.addEventListener("change", (event) => {
-      state.placementConfirmed = event.target.checked;
-      renderShell(shell, body);
-    });
-  shell.querySelector('[data-action="complete"]')?.addEventListener("click", () => {
-    if (!clickNativeButton(body, "完成闭合")) {
-      setMessage("", "闭合失败，请确认轮廓节点不少于 3 个。");
-    }
-  });
-  shell.querySelector('[data-action="confirm"]')?.addEventListener("click", () => {
-    const error = validateRedline(
-      state.redline.points || [],
-      state.redline.areaM2,
-      "image_import"
-    );
-    if (error) {
-      setMessage("", error);
-      return;
-    }
-    if (!clickNativeButton(body, "确认用地红线")) {
-      setMessage("", "请先完成闭合，再确认用地红线。");
-    }
-  });
 
   drawPreview(shell.querySelector('[data-role="preview"]'));
+  renderMapEditingOverlays();
+  renderMapToolbar();
 };
 
 const renderActiveShell = () => {
@@ -1205,7 +1773,14 @@ const locateRedlineBody = () => {
 const installShell = () => {
   const body = locateRedlineBody();
   if (!body) {
-    state.activeBody?.classList.remove("redline-image-mode");
+    clearTransformOverlays();
+    clearActivationOverlays();
+    state.mapToolbar?.remove();
+    state.mapToolbar = null;
+    state.activeBody?.classList.remove(
+      "redline-image-mode",
+      "redline-unified-edit-mode"
+    );
     if (state.activeBody) {
       state.activeBody.style.removeProperty("padding-top");
       state.activeBody.style.removeProperty("min-height");
@@ -1216,7 +1791,10 @@ const installShell = () => {
   }
   const bodyChanged = state.activeBody !== body;
   if (bodyChanged) {
-    state.activeBody?.classList.remove("redline-image-mode");
+    state.activeBody?.classList.remove(
+      "redline-image-mode",
+      "redline-unified-edit-mode"
+    );
     if (state.activeBody) {
       state.activeBody.style.removeProperty("padding-top");
       state.activeBody.style.removeProperty("min-height");
@@ -1233,12 +1811,53 @@ const installShell = () => {
   if (shell.parentElement !== document.body) {
     document.body.appendChild(shell);
   }
-  body.classList.toggle("redline-image-mode", state.mode === "image");
-  body.style.paddingTop = state.mode === "manual" ? "62px" : "16px";
+  const hasEditableRedline =
+    (state.redline.points || []).length >= 3 &&
+    state.redline.status !== "已确认";
+  body.style.paddingTop =
+    state.redline.status === "已确认" ? "62px" : "16px";
   if (bodyChanged || shellCreated) {
     renderShell(shell, body);
   }
   syncPortalLayout();
+  bindTransformMap(window.__ARCHICONCEPT_MAP__);
+};
+
+const bindTransformMap = (map) => {
+  if (!map || state.map === map && state.mapEventsBound) return;
+  state.map = map;
+  state.mapEventsBound = true;
+  map.on?.("zoomend", () => {
+    renderMapEditingOverlays();
+    syncMapToolbarLayout();
+  });
+  map.on?.("moveend", () => {
+    renderMapEditingOverlays();
+    syncMapToolbarLayout();
+  });
+  map.on?.("click", () => {
+    if (
+      state.activeTool === "freeTransform" &&
+      !state.transforming &&
+      performance.now() > state.ignoreBlankMapClickUntil
+    ) {
+      setActiveTool("node");
+    }
+  });
+  map.getContainer()?.addEventListener("pointerdown", (event) => {
+    if (
+      state.activeTool === "freeTransform" &&
+      !state.transforming &&
+      performance.now() > state.ignoreBlankMapClickUntil &&
+      !event.target.closest(
+        ".redline-transform-handle,.redline-transform-move-surface"
+      )
+    ) {
+      setActiveTool("node");
+    }
+  }, true);
+  renderMapEditingOverlays();
+  renderMapToolbar();
 };
 
 const syncPortalLayout = () => {
@@ -1246,7 +1865,7 @@ const syncPortalLayout = () => {
   const shell = document.querySelector(".image-redline-portal");
   if (!body?.isConnected || !shell) return;
   const rect = body.getBoundingClientRect();
-  const inset = 16;
+  const inset = 22;
   let scrollContainer = body.parentElement;
   while (scrollContainer && scrollContainer !== document.body) {
     const overflowY = window.getComputedStyle(scrollContainer).overflowY;
@@ -1268,41 +1887,94 @@ const syncPortalLayout = () => {
     )
   );
   const shellTop = rect.top + inset;
+  const visibleAvailableHeight = Math.max(
+    260,
+    Math.min(availableHeight, containerRect.bottom - inset - shellTop)
+  );
   shell.style.left = `${Math.round(rect.left + inset)}px`;
   shell.style.top = `${Math.round(shellTop)}px`;
   shell.style.width = `${Math.max(250, Math.round(rect.width - inset * 2))}px`;
-  shell.style.maxHeight =
-    state.mode === "image"
-      ? `${availableHeight}px`
-      : "none";
-  if (state.mode === "image") {
-    const visibleShellHeight = Math.min(shell.scrollHeight, availableHeight);
-    body.style.minHeight = `${Math.max(
-      160,
-      visibleShellHeight + inset * 2
-    )}px`;
-    const clipTop = Math.max(0, containerRect.top + inset - shellTop);
-    const clipBottom = Math.max(
-      0,
-      shellTop + visibleShellHeight - (containerRect.bottom - inset)
-    );
-    shell.style.clipPath = `inset(${Math.round(clipTop)}px 0 ${Math.round(
-      clipBottom
-    )}px 0)`;
-  } else {
-    body.style.removeProperty("min-height");
-    shell.style.removeProperty("clip-path");
-  }
+  const hasEditableRedline =
+    (state.redline.points || []).length >= 3 &&
+    state.redline.status !== "已确认";
+  const needsScrollablePortal =
+    (state.mode === "image" && Boolean(state.sourceCanvas)) ||
+    hasEditableRedline;
+  shell.style.maxHeight = needsScrollablePortal
+    ? `${visibleAvailableHeight}px`
+    : "none";
+  const visibleShellHeight = needsScrollablePortal
+    ? Math.min(shell.scrollHeight, visibleAvailableHeight)
+    : shell.scrollHeight;
+  body.style.minHeight = `${Math.max(
+    128,
+    visibleShellHeight + inset * 2
+  )}px`;
+  shell.style.removeProperty("clip-path");
+  syncMapToolbarLayout();
 };
 
 window.addEventListener("archiconcept:redline-state", (event) => {
-  state.redline = event.detail;
+  const previousPoints = state.redline.points || [];
+  const previousSource = state.redline.source;
+  const nextSignature = (event.detail.points || [])
+    .map((point) => `${point.lng.toFixed(9)},${point.lat.toFixed(9)}`)
+    .join("|");
   if (
-    window.__ARCHICONCEPT_REDLINE_SOURCE__ === "image_import" &&
-    event.detail.points?.length >= 3
+    state.geometrySignature &&
+    nextSignature &&
+    nextSignature !== state.geometrySignature
   ) {
-    state.imported = true;
+    state.placementConfirmed = false;
   }
+  state.geometrySignature = nextSignature;
+  state.redline = event.detail;
+  const pointCount = event.detail.points?.length || 0;
+  if (event.detail.status === "已确认") {
+    state.editorState = "confirmed";
+    state.activeTool = "node";
+  } else if (pointCount >= 3) {
+    const remainsManualDrawing =
+      event.detail.source === "manual_draw" &&
+      event.detail.status === "编辑中" &&
+      (state.editorState === "drawing" || previousPoints.length < 3);
+    if (previousPoints.length < 3 || previousSource !== event.detail.source) {
+      state.activeTool = "node";
+    }
+    state.editorState =
+      remainsManualDrawing
+        ? "drawing"
+        : state.activeTool === "freeTransform"
+        ? "freeTransform"
+        : "polygonEditing";
+  } else {
+    state.activeTool = "node";
+    state.editorState =
+      event.detail.status === "编辑中" ? "drawing" : "idle";
+  }
+  if (event.detail.source === "image_import" && event.detail.points?.length >= 3) {
+    state.imported = true;
+    state.mode = "image";
+  } else if (event.detail.source === "manual_draw") {
+    state.mode = "manual";
+  }
+  renderActiveShell();
+  renderMapEditingOverlays();
+  renderMapToolbar();
+});
+
+window.addEventListener("archiconcept:map-ready", (event) => {
+  bindTransformMap(event.detail?.map || window.__ARCHICONCEPT_MAP__);
+});
+
+window.addEventListener("archiconcept:site-location-reset", () => {
+  resetImageImportState();
+  state.mode = "manual";
+  state.activeTool = "node";
+  state.editorState = "idle";
+  state.geometrySignature = "";
+  clearTransformOverlays();
+  clearActivationOverlays();
   renderActiveShell();
 });
 
@@ -1338,7 +2010,10 @@ const observer = new MutationObserver((mutations) => {
 });
 
 observer.observe(document.body, { childList: true, subtree: true });
-window.addEventListener("resize", syncPortalLayout);
+window.addEventListener("resize", () => {
+  syncPortalLayout();
+  syncMapToolbarLayout();
+});
 document.addEventListener("scroll", syncPortalLayout, true);
 syncEditorPageScrollLock();
 installShell();

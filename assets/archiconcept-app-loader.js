@@ -1692,8 +1692,32 @@ replaceOnce(
 
 replaceOnce(
   '},[We]);const[Gr,hr]=k.useState',
-  '},[We]);k.useEffect(()=>{const v={points:We.map(T=>({lng:T.lng,lat:T.lat})),areaM2:Ws,perimeterM:_i,status:Ce};window.__ARCHICONCEPT_REDLINE_STATE__=v;window.dispatchEvent(new CustomEvent("archiconcept:redline-state",{detail:v}))},[We,Ws,_i,Ce]);k.useEffect(()=>{const v=!me?1:Ce!=="\\u5df2\\u786e\\u8ba4"?2:Pt!=="\\u5df2\\u5b8c\\u6210"?3:4,T={step:v,locationConfirmed:!!me,boundaryStatus:Ce,entranceStatus:Pt,contextStatus:Tt,visiblePoiLayers:{...visiblePoiLayers}};window.__ARCHICONCEPT_SITE_EDITOR_STATE__=T;window.dispatchEvent(new CustomEvent("archiconcept:site-editor-state",{detail:T}))},[ie,fe,me,Ce,Pt,Tt,visiblePoiLayers]);const[Gr,hr]=k.useState',
+  '},[We]);k.useEffect(()=>{const v={points:We.map(T=>({lng:T.lng,lat:T.lat})),areaM2:Ws,perimeterM:_i,status:Ce,source:window.__ARCHICONCEPT_REDLINE_SOURCE__||"manual_draw"};window.__ARCHICONCEPT_REDLINE_STATE__=v;window.dispatchEvent(new CustomEvent("archiconcept:redline-state",{detail:v}))},[We,Ws,_i,Ce]);k.useEffect(()=>{const v=!me?1:Ce!=="\\u5df2\\u786e\\u8ba4"?2:Pt!=="\\u5df2\\u5b8c\\u6210"?3:4,T={step:v,locationConfirmed:!!me,boundaryStatus:Ce,entranceStatus:Pt,contextStatus:Tt,visiblePoiLayers:{...visiblePoiLayers}};window.__ARCHICONCEPT_SITE_EDITOR_STATE__=T;window.dispatchEvent(new CustomEvent("archiconcept:site-editor-state",{detail:T}))},[ie,fe,me,Ce,Pt,Tt,visiblePoiLayers]);const[Gr,hr]=k.useState',
   "redline and site editor state bridges"
+);
+
+replaceOnce(
+  '[redlineHistoryTick,setRedlineHistoryTick]=k.useState(0),redlineUndo=k.useRef([])',
+  '[redlineHistoryTick,setRedlineHistoryTick]=k.useState(0),siteEditorSnapshot=k.useRef(null),redlineUndo=k.useRef([])',
+  "site editor draft snapshot"
+);
+
+replaceOnce(
+  'saveSiteDraft=()=>{const v=In();Mn.current&&Mn.current({...je,siteIntelligencePackage:v}),cn("\\u8349\\u7a3f\\u5df2\\u4fdd\\u5b58\\u3002")},closeWithoutSaving=()=>{setClosePrompt(!1),se(!1)},saveAndCloseEditor=()=>{saveSiteDraft(),setClosePrompt(!1),se(!1)};',
+  'captureSiteEditorSnapshot=()=>({brief:{...je},sitePackage:In(),confirmedLocation:me?{...me}:null,candidateLocation:j?{...j}:null,points:We.map(v=>({...v})),boundaryStatus:Ce,areaM2:Ws,perimeterM:_i,entrances:Ut.map(v=>({...v})),entranceStatus:Pt,radius:xs,contextStatus:Tt,surroundings:{...qn},analysisItems:[...Kn],skipEntrance:no,visiblePoiLayers:{...visiblePoiLayers}}),resetSiteSelection=()=>{Te(null),U(null),Vn(v=>({...v,location:""})),Ot([]),vn("\\u672a\\u7ed8\\u5236"),Di(0),_a(0),Wn([]),It("\\u672a\\u5f00\\u59cb"),eo(null),Xr("\\u672a\\u5f00\\u59cb"),Zr({}),An([]),Hs(!1),setVisiblePoiLayers({}),redlineUndo.current=[],redlineRedo.current=[],Kr.current&&ss.current&&ss.current.remove(Kr.current),Kr.current=null,window.dispatchEvent(new CustomEvent("archiconcept:site-location-reset")),window.__ARCHICONCEPT_REDLINE_SOURCE__="manual_draw"},saveSiteDraft=()=>{const v=In();Mn.current&&Mn.current({...je,siteIntelligencePackage:v}),siteEditorSnapshot.current=captureSiteEditorSnapshot(),cn("\\u8349\\u7a3f\\u5df2\\u4fdd\\u5b58\\u3002")},closeWithoutSaving=()=>{const v=siteEditorSnapshot.current;v&&(Vn(v.brief),Te(v.confirmedLocation),U(v.candidateLocation),Ot(v.points),vn(v.boundaryStatus),Di(v.areaM2),_a(v.perimeterM),Wn(v.entrances),It(v.entranceStatus),eo(v.radius),Xr(v.contextStatus),Zr(v.surroundings),An(v.analysisItems),Hs(v.skipEntrance),setVisiblePoiLayers(v.visiblePoiLayers),redlineUndo.current=[],redlineRedo.current=[],Mn.current&&Mn.current({...v.brief,siteIntelligencePackage:v.sitePackage})),window.dispatchEvent(new CustomEvent("archiconcept:site-location-reset")),siteEditorSnapshot.current=null,setClosePrompt(!1),se(!1)},saveAndCloseEditor=()=>{saveSiteDraft(),siteEditorSnapshot.current=null,setClosePrompt(!1),se(!1)},siteEditorSnapshotEffect=k.useEffect(()=>{ie&&!siteEditorSnapshot.current&&(siteEditorSnapshot.current=captureSiteEditorSnapshot())},[ie]);',
+  "discard unsaved site editor changes"
+);
+
+replaceOnce(
+  'onClick:()=>{U(null)},className:"px-2.5 py-1.5',
+  'onClick:resetSiteSelection,className:"px-2.5 py-1.5',
+  "reset downstream site selections"
+);
+
+replaceOnce(
+  'onClick:()=>{Te(null),U(null),F(""),re([])},className:"text-emerald-700',
+  'onClick:resetSiteSelection,className:"text-emerald-700',
+  "reset confirmed site selection"
 );
 
 replaceOnce(
@@ -1716,7 +1740,7 @@ replaceOnce(
 
 replaceOnce(
   '})(),()=>{v=!0}},[ie]);const gs=',
-  '})(),()=>{v=!0}},[ie]);const mapLocationPickEffect=k.useEffect(()=>{const v=ss.current,T=window.AMap;if(!ie||!fe||!v||!T||Ce!=="\\u672a\\u7ed8\\u5236"||Pt!=="\\u672a\\u5f00\\u59cb")return;const V=q=>{if(!q||!q.lnglat)return;const I=q.lnglat.getLng(),X=q.lnglat.getLat(),J=((me&&me.name)||(j&&j.name)||je.location||"\\u5730\\u56fe\\u70b9\\u9009\\u4f4d\\u7f6e").trim()||"\\u5730\\u56fe\\u70b9\\u9009\\u4f4d\\u7f6e",Ne={id:"map_pick",name:J,address:"\\u5730\\u56fe\\u70b9\\u9009\\u5750\\u6807",province:me&&me.province||"",city:me&&me.city||"",district:me&&me.district||"",adcode:me&&me.adcode||"",location:{lng:I,lat:X},type:me&&me.type||"\\u5730\\u56fe\\u70b9\\u9009",source:"map_click"};Te(null),U(Ne),Kr.current&&v.remove(Kr.current),Kr.current=new T.Marker({position:new T.LngLat(I,X),map:v,title:"\\u5730\\u56fe\\u70b9\\u9009\\u4f4d\\u7f6e"}),cn("\\u5df2\\u6309\\u5730\\u56fe\\u70b9\\u51fb\\u4f4d\\u7f6e\\u91cd\\u65b0\\u5b9a\\u4f4d\\uff0c\\u8bf7\\u786e\\u8ba4\\u9879\\u76ee\\u4f4d\\u7f6e\\u3002")};return v.on("click",V),()=>v.off("click",V)},[ie,fe,Ce,Pt,me,j,je.location]);const gs=',
+  '})(),()=>{v=!0}},[ie]);const mapLocationPickEffect=k.useEffect(()=>{const v=ss.current,T=window.AMap;if(!ie||!fe||!v||!T||Ce!=="\\u672a\\u7ed8\\u5236"||Pt!=="\\u672a\\u5f00\\u59cb")return;const V=q=>{if(!q||!q.lnglat)return;const I=q.lnglat.getLng(),X=q.lnglat.getLat(),J=Ne=>{const Ee=Ne?.regeocode||{},Ae=Ee.addressComponent||{},Ke=Ee.pois?.[0],Nt=Ee.formattedAddress||`${I.toFixed(6)}, ${X.toFixed(6)}`,hn=(Ke?.name||Ae.township||Ae.district||"\\u5730\\u56fe\\u70b9\\u9009\\u4f4d\\u7f6e").trim(),jn={id:"map_pick",name:hn,address:Nt,province:Ae.province||"",city:Array.isArray(Ae.city)?Ae.city.join(""):Ae.city||"",district:Ae.district||"",adcode:Ae.adcode||"",location:{lng:I,lat:X},type:"\\u5730\\u56fe\\u70b9\\u9009",source:"map_click"};Te(null),U(jn),Kr.current&&v.remove(Kr.current),Kr.current=new T.Marker({position:new T.LngLat(I,X),map:v,title:hn}),cn("\\u5df2\\u66f4\\u65b0\\u5730\\u56fe\\u70b9\\u9009\\u5730\\u5740\\uff0c\\u8bf7\\u786e\\u8ba4\\u9879\\u76ee\\u4f4d\\u7f6e\\u3002")},Ne=()=>J({regeocode:{formattedAddress:`\\u5730\\u56fe\\u70b9\\u9009\\u5750\\u6807 ${I.toFixed(6)}, ${X.toFixed(6)}`,addressComponent:{}}}),Ee=()=>{try{new T.Geocoder({radius:500,extensions:"all"}).getAddress([I,X],(Ae,Ke)=>Ae==="complete"&&Ke?.regeocode?J(Ke):Ne())}catch{Ne()}};T.Geocoder?Ee():T.plugin(["AMap.Geocoder"],Ee)};return v.on("click",V),()=>v.off("click",V)},[ie,fe,Ce,Pt]);const gs=',
   "map click location selection"
 );
 
@@ -1808,6 +1832,23 @@ replaceOnce(
   'u.inputReview.problemSummaries.map((H,Ie)=>({title:`${Ie+1}. ${H.title}`,desc:H.description}))',
   'u.inputReview.problemSummaries.map((H,Ie)=>({title:`${Ie+1}. ${typeof H==="string"?H:H.title||H.name||"\\u5f85\\u786e\\u8ba4\\u95ee\\u9898"}`,desc:typeof H==="string"?"\\u7531\\u95ee\\u9898\\u8bc6\\u522b\\u7ed3\\u679c\\u8f6c\\u5165\\u7a7a\\u95f4\\u610f\\u56fe\\u5224\\u65ad\\u3002":H.description||H.desc||""}))',
   "spatial intent problem summary normalization"
+);
+
+replaceOnce(
+  'mapNoiseEffect=k.useEffect',
+  'redlineKeyboardMoveEffect=k.useEffect(()=>{if(Ce!=="\\u7f16\\u8f91\\u4e2d"||redlineMode!=="move"||We.length<3)return;const v=T=>{const V=T.target;if(V&&(V.matches?.("input,textarea,select")||V.isContentEditable)||T.ctrlKey||T.metaKey)return;const q={ArrowUp:[0,1],Numpad8:[0,1],ArrowDown:[0,-1],Numpad2:[0,-1],ArrowLeft:[-1,0],Numpad4:[-1,0],ArrowRight:[1,0],Numpad6:[1,0]}[T.code]||{ArrowUp:[0,1],ArrowDown:[0,-1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[T.key];if(!q)return;T.preventDefault();const I=T.altKey?0.1:T.shiftKey?1:0.25,X=We.reduce((Ae,Ke)=>Ae+Ke.lat,0)/We.length,J=Math.max(.2,Math.cos(X*Math.PI/180)),Ne=q[0]*I/(111320*J),Ee=q[1]*I/111320;redlineUndo.current.push({points:cloneRedline(We),status:Ce}),redlineRedo.current=[],Ot(Ae=>Ae.map(Ke=>({lng:Ke.lng+Ne,lat:Ke.lat+Ee}))),setRedlineHistoryTick(Ae=>Ae+1)};return window.addEventListener("keydown",v),()=>window.removeEventListener("keydown",v)},[Ce,redlineMode,We]),redlineExternalTransformEffect=k.useEffect(()=>{const v=T=>{const V=T.detail||{},q=Array.isArray(V.points)?V.points.map(I=>({lng:Number(I.lng),lat:Number(I.lat)})).filter(I=>Number.isFinite(I.lng)&&Number.isFinite(I.lat)):null;if(V.phase==="start"){redlineMoveStart.current={points:cloneRedline(We),status:Ce};return}q&&q.length>=3&&Ot(q),V.phase==="end"&&redlineMoveStart.current&&(redlineUndo.current.push(redlineMoveStart.current),redlineRedo.current=[],redlineMoveStart.current=null,setRedlineHistoryTick(I=>I+1))},T=I=>{const X=I.detail?.mode;X&&setRedlineMode(X)};return window.addEventListener("archiconcept:redline-transform",v),window.addEventListener("archiconcept:redline-mode",T),()=>{window.removeEventListener("archiconcept:redline-transform",v),window.removeEventListener("archiconcept:redline-mode",T)}},[We,Ce]),mapNoiseEffect=k.useEffect',
+  "redline keyboard movement"
+);
+
+replaceOnce(
+  'const Ne=cloneRedline(We),Ee=J.lnglat.getLng(),Ae=J.lnglat.getLat(),Ke=Nt=>{const hn=Nt.lnglat.getLng()-Ee,jn=Nt.lnglat.getLat()-Ae;Ot(Ne.map(Bt=>({lng:Bt.lng+hn,lat:Bt.lat+jn})))}',
+  'const Ne=cloneRedline(We),Ee=J.lnglat.getLng(),Ae=J.lnglat.getLat(),Ke=Nt=>{const hn=(Nt.lnglat.getLng()-Ee)*.35,jn=(Nt.lnglat.getLat()-Ae)*.35;Ot(Ne.map(Bt=>({lng:Bt.lng+hn,lat:Bt.lat+jn})))}',
+  "whole redline drag sensitivity"
+);
+
+source = source.replaceAll(
+  'redlineMode!=="move"&&redlineMode!=="delete"&&commitRedline',
+  'redlineMode!=="move"&&redlineMode!=="delete"&&redlineMode!=="freeTransform"&&commitRedline'
 );
 
 replaceOnce(
