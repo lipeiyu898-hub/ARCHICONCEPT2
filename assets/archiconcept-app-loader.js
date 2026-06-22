@@ -1,3 +1,6 @@
+import "./archiconcept-data-chain.js";
+import "./archiconcept-workflow-v2.js";
+
 const sourceLink = document.getElementById("archiconcept-app-source");
 
 if (!sourceLink) {
@@ -1695,6 +1698,18 @@ replaceOnce(
 );
 
 replaceOnce(
+  'const N=[{id:"01",title:"输入条件",desc:"定义项目背景、目标与约束条件。",icon:n.jsx(A1,{size:18})},{id:"02",title:"问题识别",desc:"识别核心问题与关键影响因素。",icon:n.jsx(Fc,{size:18})},{id:"03",title:"空间意图",desc:"提炼设计意图与空间愿景。",icon:n.jsx(CE,{size:18})},{id:"04",title:"策略匹配",desc:"匹配场地与功能需求，生成策略方向。",icon:n.jsx(mE,{size:18})},{id:"05",title:"原型生成",desc:"基于策略生成多个设计原型。",icon:n.jsx(K5,{size:18})},{id:"06",title:"解释输出",desc:"从多维度对方案进行评估与解读，输出结论与建议。",icon:n.jsx(jm,{size:18})}]',
+  'const N=[{id:"01",title:"边界锚定",desc:"拆解任务书与硬性约束，建立设计基准。",icon:n.jsx(A1,{size:18})},{id:"02",title:"场地解析",desc:"解析场地限制与机会，形成场地判断。",icon:n.jsx(Fc,{size:18})},{id:"03",title:"功能建构",desc:"建立功能分级、面积关系和动线逻辑。",icon:n.jsx(CE,{size:18})},{id:"04",title:"概念生成",desc:"提炼核心问题并统合设计策略。",icon:n.jsx(mE,{size:18})},{id:"05",title:"形态落位",desc:"生成体块、总平和多方案布局方向。",icon:n.jsx(K5,{size:18})},{id:"06",title:"比选定型",desc:"完成方案比较、基础校核与最终定型。",icon:n.jsx(jm,{size:18})}]',
+  "workflow v2 intro steps"
+);
+
+replaceOnce(
+  'const a=[{id:"01",title:"输入条件",enLabel:"INPUT BRIEF",sub:"项目基础与规划约束"},{id:"02",title:"问题识别",enLabel:"PROBLEM ID",sub:"关键问题与限制判断"},{id:"03",title:"空间意图",enLabel:"SPATIAL INTENT",sub:"空间方向与组织倾向"},{id:"04",title:"策略匹配",enLabel:"STRATEGY MATCH",sub:"设计策略与生成逻辑"},{id:"05",title:"原型生成",enLabel:"PROTOTYPE GEN",sub:"由于控制优先形成的物理原型"},{id:"06",title:"解释输出",enLabel:"OUTCOME EXPLAIN",sub:"推演依据与结果说明"}]',
+  'const a=[{id:"01",title:"边界锚定",enLabel:"BOUNDARY ANCHOR",sub:"任务书与硬性约束"},{id:"02",title:"场地解析",enLabel:"SITE ANALYSIS",sub:"场地限制与机会"},{id:"03",title:"功能建构",enLabel:"PROGRAM LOGIC",sub:"功能关系与动线"},{id:"04",title:"概念生成",enLabel:"CONCEPT STRATEGY",sub:"问题、策略与概念"},{id:"05",title:"形态落位",enLabel:"MASSING PLACEMENT",sub:"体块、总平与指标"},{id:"06",title:"比选定型",enLabel:"OPTION VALIDATION",sub:"比选、校核与报告"}]',
+  "workflow v2 timeline steps"
+);
+
+replaceOnce(
   'id:"site-loc-label"\n,children:"A+"',
   'id:"site-loc-label"\n,children:"B"',
   "site context section label"
@@ -2063,6 +2078,67 @@ replaceOnce(
   'u.inputReview.problemSummaries.map((H,Ie)=>({title:`${Ie+1}. ${H.title}`,desc:H.description}))',
   'u.inputReview.problemSummaries.map((H,Ie)=>({title:`${Ie+1}. ${typeof H==="string"?H:H.title||H.name||"\\u5f85\\u786e\\u8ba4\\u95ee\\u9898"}`,desc:typeof H==="string"?"\\u7531\\u95ee\\u9898\\u8bc6\\u522b\\u7ed3\\u679c\\u8f6c\\u5165\\u7a7a\\u95f4\\u610f\\u56fe\\u5224\\u65ad\\u3002":H.description||H.desc||""}))',
   "spatial intent problem summary normalization"
+);
+
+replaceOnce(
+  'const Re=Ve=>{p(Ve);',
+  'const Re=Ve=>{p(Ve),window.ARCHICONCEPT_DATA_CHAIN?.bridge.scheduleProjectBrief(Ve,m);',
+  "project data chain input change bridge"
+);
+
+replaceOnce(
+  'nt=()=>{p({name:"",type:"",location:"",area:"",far:"",density:"",greenery:"",height:"",gfa:"",floors:"",buildableArea:"",siteCondition:"",needs:"",users:"",areaProgram:""})',
+  'nt=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.reset(),p({name:"",type:"",location:"",area:"",far:"",density:"",greenery:"",height:"",gfa:"",floors:"",buildableArea:"",siteCondition:"",needs:"",users:"",areaProgram:""})',
+  "project data chain clear bridge"
+);
+
+replaceOnce(
+  'onNext:(Ve,ht)=>{p(Ve),f(ht),g(!0),Z(Ve,ht)}',
+  'onNext:(Ve,ht)=>{window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncProjectBrief(Ve,ht),p(Ve),f(ht),g(!0),Z(Ve,ht)}',
+  "project data chain input submit bridge"
+);
+
+replaceOnce(
+  'onNext:Ve=>{Ve&&w(Ve),Le(Ve)},onAnswersChange:Ve=>{P(Ve),ie("stale")}',
+  'onNext:Ve=>{window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncProblemAnalysis(E,Ve?.followUpAnswers||Ve?.answers||z),Ve&&w(Ve),Le(Ve)},onAnswersChange:Ve=>{window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncProblemAnalysis(E,Ve),P(Ve),ie("stale")}',
+  "project data chain problem bridge"
+);
+
+replaceOnce(
+  'onNext:Ve=>{qe(Ve)},projectData:u',
+  'onNext:Ve=>{window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncSpatialIntent(oe,z),qe(Ve)},projectData:u',
+  "project data chain function bridge"
+);
+
+replaceOnce(
+  'onNext:Ve=>{ge(Ve),an()},projectData:u',
+  'onNext:Ve=>{window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncStrategy(Ve||ve),ge(Ve),an()},projectData:u',
+  "project data chain concept strategy bridge"
+);
+
+replaceOnce(
+  'onBack:Ge,onNext:Hr,projectData:u',
+  'onBack:Ge,onNext:()=>{window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncMassing(we),Hr()},projectData:u',
+  "project data chain massing bridge"
+);
+
+replaceOnce(
+  'Bn=()=>{window.scrollTo(0,0),o("project_input")},Lt=()=>{window.scrollTo(0,0),o("problem_id")},wt=()=>{window.scrollTo(0,0),o("spatial_intent")},Ge=()=>{window.scrollTo(0,0),o("strategy_match")},an=()=>{window.scrollTo(0,0),o("prototype_gen")},Hr=()=>{window.scrollTo(0,0),o("explanation_output")}',
+  'Bn=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(1),window.scrollTo(0,0),o("project_input")},Lt=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(2),window.scrollTo(0,0),o("problem_id")},wt=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(3),window.scrollTo(0,0),o("spatial_intent")},Ge=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(4),window.scrollTo(0,0),o("strategy_match")},an=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(5),window.scrollTo(0,0),o("prototype_gen")},Hr=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(6),window.scrollTo(0,0),o("explanation_output")},workflowV2RouteEffect=k.useEffect(()=>{const Ve=ht=>{const dt=Number(ht.detail?.step)||1;({1:Bn,2:Lt,3:wt,4:Ge,5:an,6:Hr}[dt]||Bn)()};return window.addEventListener("archiconcept:workflow-v2-route",Ve),()=>window.removeEventListener("archiconcept:workflow-v2-route",Ve)},[])',
+  "project data chain current step bridge"
+);
+
+source = source.replaceAll(
+  'R(jt),S(dt),K("ready"),O(!0),Lt()',
+  'window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncProblemAnalysis(jt,z),R(jt),S(dt),K("ready"),O(!0),Lt()'
+);
+source = source.replaceAll(
+  'R(Se),S(dt),K("ready")',
+  'window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncProblemAnalysis(Se,z),R(Se),S(dt),K("ready")'
+);
+source = source.replaceAll(
+  'R(Ct),S(Ve),K("ready"),O(!0)',
+  'window.ARCHICONCEPT_DATA_CHAIN?.bridge.syncProblemAnalysis(Ct,z),R(Ct),S(Ve),K("ready"),O(!0)'
 );
 
 replaceOnce(
