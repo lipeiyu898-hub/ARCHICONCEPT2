@@ -853,22 +853,29 @@ const rebuildProblemGroups = (list) => {
 };
 
 const enhanceProblemTrust = () => {
-  const module = document.querySelector("#module-b-problems");
-  const header = document.querySelector("#problems-header");
+  const module = document.querySelector("#module-a-review");
+  const header = document.querySelector("#review-header");
   if (!module || !header) return;
 
-  let strip = module.querySelector(":scope > .problem-trust-strip");
+  document.querySelector("#module-b-problems > .problem-trust-strip")?.remove();
+
+  let strip = module.querySelector(":scope > .problem-evidence-panel");
   if (!strip) {
     strip = document.createElement("div");
-    strip.className = "problem-trust-strip";
-    header.insertAdjacentElement("afterend", strip);
+    strip.className = "problem-evidence-panel";
+    module.appendChild(strip);
   }
 
-  const review = document.querySelector("#module-a-review");
-  const reviewText = review?.textContent || "";
+  const reviewText = module.innerText || module.textContent || "";
+  const readReviewValue = (label) =>
+    reviewText.match(new RegExp(`${label}[^\\n]*\\n([^\\n]+)`))?.[1]?.trim() || "";
+  const projectName = readReviewValue("项目名称");
+  const buildingType = readReviewValue("建筑类型");
+  const location = readReviewValue("项目地点");
+  const siteArea = readReviewValue("用地面积");
   const missingFields = [
     ...new Set(
-      [...(review?.querySelectorAll("span") || [])]
+      [...module.querySelectorAll("span")]
         .map((element) => element.textContent?.trim())
         .filter(
           (text) =>
@@ -876,35 +883,80 @@ const enhanceProblemTrust = () => {
             text !== "缺失项:" &&
             (text.includes("待确认") || text.includes("未指定"))
         )
+        .map((text) => text.replace(/[：:]\s*(待确认|未指定).*$/, ""))
     )
   ];
-  const hasSiteEvidence =
-    !/项目地点\s*\/\s*LOCATION\s*未指定/.test(reviewText) ||
-    /实测|红线|入口|周边/.test(reviewText);
-  const sources = ["用户输入"];
-  if (hasSiteEvidence) sources.push("场地分析");
-  sources.push("系统推断");
+
+  const userInputs = [];
+  if (projectName && !projectName.includes("未指定")) userInputs.push("项目名称");
+  if (buildingType && !buildingType.includes("未指定")) userInputs.push("建筑类型");
+  if (siteArea && !siteArea.includes("未指定")) userInputs.push("面积指标");
+
+  const siteEvidence = [];
+  if (location && !location.includes("未指定")) siteEvidence.push(location);
+  if (/前海|滨海|海岸|沿海/.test(reviewText)) siteEvidence.push("滨海环境");
+  else if (/红线|入口|周边/.test(reviewText)) siteEvidence.push("红线与周边关系");
+
+  const systemInferences = [];
+  if (/数据中心/.test(`${projectName} ${buildingType}`)) {
+    systemInferences.push("地下数据中心");
+  }
+  if (/市民|公共|活动|文化|展示/.test(`${projectName} ${buildingType}`)) {
+    systemInferences.push("公共活动空间");
+  }
+  if (!systemInferences.length && buildingType && !buildingType.includes("未指定")) {
+    systemInferences.push("基于建筑类型的空间需求");
+  }
+  if (
+    /前海|滨海|海岸|沿海/.test(reviewText) &&
+    /地下\s*\d|地下空间|数据中心/.test(reviewText)
+  ) {
+    missingFields.push("抗浮水位");
+  }
+
+  const normalizedMissing = [...new Set(missingFields)];
   const confidence =
-    missingFields.length >= 3 ? "低" : missingFields.length > 0 ? "中" : "高";
-  const signature = `${sources.join(" / ")}|${confidence}|${missingFields.join(
-    "、"
-  )}`;
+    normalizedMissing.length >= 3
+      ? "低"
+      : normalizedMissing.length > 0
+        ? "中"
+        : "高";
+  const evidenceRows = [
+    ["用户输入", userInputs.length ? userInputs.join("、") : "暂无可靠输入"],
+    ["场地分析", siteEvidence.length ? siteEvidence.join("、") : "暂无已确认场地依据"],
+    [
+      "系统推断",
+      systemInferences.length ? systemInferences.join("、") : "等待更多输入后推断"
+    ],
+    [
+      "缺失项",
+      normalizedMissing.length ? normalizedMissing.join("、") : "无关键缺失"
+    ]
+  ];
+  const signature = `${confidence}|${evidenceRows.flat().join("|")}`;
   if (strip.dataset.signature === signature) return;
   strip.dataset.signature = signature;
-  strip.replaceChildren();
-
-  const source = document.createElement("div");
-  source.innerHTML = `<span>依据来源</span><strong>${sources.join(
-    " / "
-  )}</strong>`;
-  const confidenceNode = document.createElement("div");
-  confidenceNode.innerHTML = `<span>置信度</span><strong class="is-confidence-${confidence}">${confidence}</strong>`;
-  const missing = document.createElement("div");
-  missing.className = "problem-trust-missing";
-  missing.innerHTML = `<span>缺失字段</span><strong>${
-    missingFields.length ? missingFields.join("、") : "无关键缺失"
-  }</strong>`;
-  strip.append(source, confidenceNode, missing);
+  strip.innerHTML = `
+    <div class="problem-evidence-heading">
+      <div>
+        <strong>本次识别依据</strong>
+        <span>问题结论由已确认信息与系统推断共同生成</span>
+      </div>
+      <span class="problem-evidence-confidence is-confidence-${confidence}">可信度 ${confidence}</span>
+    </div>
+    <div class="problem-evidence-grid">
+      ${evidenceRows
+        .map(
+          ([label, value], index) => `
+            <div class="problem-evidence-row${index === 3 ? " is-missing" : ""}">
+              <span>${label}</span>
+              <strong>${value}</strong>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
 };
 
 const parseProblemSummary = () => {
@@ -920,12 +972,16 @@ const parseProblemSummary = () => {
     questionText.match(/(?:展开|收起)\s*\((\d+)\)/)?.[1] || 0
   );
   const level = text.match(/数据完成等级\s*([高中低])/)?.[1] || "低";
+  const p0 = document.querySelectorAll("#problems-list .problem-card-p0").length;
+  const p1 = document.querySelectorAll("#problems-list .problem-card-p1").length;
   return {
     total,
     answered,
     required,
     optional,
     level,
+    p0,
+    p1,
     blocking: Math.max(required - answered, 0)
   };
 };
@@ -957,16 +1013,19 @@ const enhanceProblemSummary = () => {
       <span>识别结果状态</span><strong>${status}</strong>
     </div>
     <div class="problem-summary-row">
-      <span>数据可信度</span><strong>${data.level}</strong>
-    </div>
-    <div class="problem-summary-row">
-      <span>必须回答</span><strong>${data.answered} / ${data.required}</strong>
-    </div>
-    <div class="problem-summary-row">
-      <span>建议补充</span><strong>${data.optional} 项</strong>
+      <span>必答进度</span><strong>${data.answered} / ${data.required}</strong>
     </div>
     <div class="problem-summary-row is-blocking">
-      <span>阻断项</span><strong>${data.blocking} 项</strong>
+      <span>P0 待确认</span><strong>${Math.max(
+        data.p0 - data.answered,
+        0
+      )} 项</strong>
+    </div>
+    <div class="problem-summary-row">
+      <span>P1 建议补充</span><strong>${data.p1 || data.optional} 项</strong>
+    </div>
+    <div class="problem-summary-row">
+      <span>数据可信度</span><strong>${data.level}</strong>
     </div>
     <div class="problem-summary-next">
       <span>下一步</span>
@@ -1468,6 +1527,160 @@ if (!response.ok) {
 
 let source = await response.text();
 
+const DEMO_SITE_PACKAGE = {
+  version: "1.0",
+  location: {
+    name: "前海石公园",
+    address: "广东省深圳市南山区南山街道前海石公园",
+    province: "广东省",
+    city: "深圳市",
+    district: "南山区",
+    adcode: "440305",
+    lng: 113.94655,
+    lat: 22.5258,
+    source: "demo",
+    confirmed: true,
+    confirmedAt: "2026-06-21T12:00:00.000Z"
+  },
+  boundary: {
+    geometry: [
+      { lng: 113.9459661, lat: 22.5267033 },
+      { lng: 113.9469561, lat: 22.5268383 },
+      { lng: 113.9477211, lat: 22.5264783 },
+      { lng: 113.9476311, lat: 22.5258483 },
+      { lng: 113.9472711, lat: 22.5252633 },
+      { lng: 113.9467311, lat: 22.5247683 },
+      { lng: 113.9458311, lat: 22.5249483 },
+      { lng: 113.9453811, lat: 22.5254883 },
+      { lng: 113.9455611, lat: 22.5261633 }
+    ],
+    areaM2: 39594,
+    perimeterM: 735,
+    vertexCount: 9,
+    source: "manual_draw",
+    status: "已确认",
+    confirmedAt: "2026-06-21T12:00:00.000Z"
+  },
+  entrances: [
+    {
+      id: "demo-main-pedestrian",
+      lng: 113.9476311,
+      lat: 22.5258483,
+      type: "主要人行入口"
+    },
+    {
+      id: "demo-secondary-pedestrian",
+      lng: 113.9467311,
+      lat: 22.5247683,
+      type: "次要人行入口"
+    },
+    {
+      id: "demo-vehicle",
+      lng: 113.9453811,
+      lat: 22.5254883,
+      type: "主要车行入口"
+    },
+    {
+      id: "demo-service",
+      lng: 113.9469561,
+      lat: 22.5268383,
+      type: "后勤入口"
+    },
+    {
+      id: "demo-fire",
+      lng: 113.9477211,
+      lat: 22.5264783,
+      type: "消防入口"
+    }
+  ],
+  surroundings: {
+    traffic: {
+      status: "success",
+      count: 6,
+      summary: "500m 内公交站点密集，步行可达性较好。",
+      judgement: "到达条件将影响首层公共界面与人流组织方向。",
+      designImpact: "主要人行入口宜面向东南侧城市道路与公交到达方向。",
+      pois: [
+        { name: "前海人道酒(公交站)", distance: 278, type: "公交站", location: "113.94905,22.52560" },
+        { name: "前海嘉里T8栋(公交站)", distance: 269, type: "公交站", location: "113.94845,22.52495" },
+        { name: "前海石公园(公交站)", distance: 237, type: "公交站", location: "113.94465,22.52465" },
+        { name: "前海嘉里中心(招呼站)", distance: 301, type: "公交站", location: "113.94795,22.52405" },
+        { name: "前海嘉里(公交站)", distance: 365, type: "公交站", location: "113.94935,22.52455" },
+        { name: "前海湾地铁站", distance: 418, type: "地铁站", location: "113.95005,22.52530" }
+      ]
+    },
+    public: {
+      status: "success",
+      count: 4,
+      summary: "公共文化与社区服务设施可覆盖日常使用需求。",
+      judgement: "公共功能可与滨海公园活动形成互补。",
+      designImpact: "展示、科普与市民活动空间宜靠近公共步行界面布置。",
+      pois: [
+        { name: "前海国际人才港", distance: 332, type: "公共服务", location: "113.94910,22.52710" },
+        { name: "前海深港青年梦工场", distance: 446, type: "公共服务", location: "113.94320,22.52720" },
+        { name: "前海展示厅", distance: 298, type: "文化设施", location: "113.94880,22.52690" },
+        { name: "前海石社区服务点", distance: 205, type: "社区服务", location: "113.94495,22.52525" }
+      ]
+    },
+    eco: {
+      status: "success",
+      count: 6,
+      summary: "场地紧邻滨海公园、观景平台与连续慢行系统。",
+      judgement: "滨水生态和公共开放空间是场地最重要的外部资源。",
+      designImpact: "建筑屋顶、地景坡道和观海平台应保持连续开放关系。",
+      pois: [
+        { name: "前海石公园", distance: 0, type: "公园", location: "113.94630,22.52575" },
+        { name: "海风露台", distance: 122, type: "观景平台", location: "113.94615,22.52720" },
+        { name: "海风桥", distance: 168, type: "慢行桥", location: "113.94740,22.52715" },
+        { name: "昆海草坪", distance: 156, type: "公共绿地", location: "113.94590,22.52755" },
+        { name: "河影露台", distance: 184, type: "观景平台", location: "113.94795,22.52685" },
+        { name: "滨水广场", distance: 95, type: "开放空间", location: "113.94520,22.52585" }
+      ]
+    },
+    commercial: {
+      status: "success",
+      count: 5,
+      summary: "东侧商务区提供餐饮、酒店和日常商业服务。",
+      judgement: "商业服务可支撑访客停留，但高峰时段可能增加人流压力。",
+      designImpact: "公共配套与咖啡轻餐可面向城市侧布置并共享外摆空间。",
+      pois: [
+        { name: "前海嘉里中心", distance: 207, type: "商业综合体", location: "113.94835,22.52565" },
+        { name: "前海JEN酒店", distance: 354, type: "酒店", location: "113.94820,22.52355" },
+        { name: "嘉里商务中心", distance: 240, type: "办公商业", location: "113.94855,22.52610" },
+        { name: "滨海咖啡", distance: 186, type: "餐饮", location: "113.94795,22.52490" },
+        { name: "前海生活广场", distance: 438, type: "商业服务", location: "113.95005,22.52475" }
+      ]
+    },
+    sensitive: {
+      status: "success",
+      count: 2,
+      summary: "周边存在滨海儿童活动空间与公共绿地等敏感使用对象。",
+      judgement: "设备噪声、排热和夜间照明需要控制。",
+      designImpact: "冷却与后勤设施应远离儿童活动和主要公园界面。",
+      pois: [
+        { name: "滨海儿童乐园", distance: 382, type: "儿童活动", location: "113.94945,22.52655" },
+        { name: "滨海公共草坪", distance: 148, type: "公共绿地", location: "113.94555,22.52695" }
+      ]
+    },
+    disturbance: {
+      status: "success",
+      count: 3,
+      summary: "东侧城市道路、停车及设备运输可能形成阶段性干扰。",
+      judgement: "交通噪声和后勤运输需要与公共活动流线分离。",
+      designImpact: "后勤入口宜设置在东北侧，并通过地景和设备缓冲带隔离。",
+      pois: [
+        { name: "听海大道", distance: 196, type: "城市道路", location: "113.94815,22.52630" },
+        { name: "前海嘉里停车场", distance: 225, type: "停车设施", location: "113.94830,22.52480" },
+        { name: "城市设备运输通道", distance: 310, type: "运输通道", location: "113.94910,22.52620" }
+      ]
+    }
+  },
+  unresolvedIssues: [],
+  updatedAt: "2026-06-21T12:00:00.000Z"
+};
+
+window.__ARCHICONCEPT_DEMO_SITE_PACKAGE__ = DEMO_SITE_PACKAGE;
+
 const replaceOnce = (needle, replacement, label) => {
   if (!source.includes(needle)) {
     throw new Error(`ARCHICONCEPT redline patch failed: ${label}`);
@@ -1721,6 +1934,12 @@ replaceOnce(
 );
 
 replaceOnce(
+  'Yc=()=>{Vn(ta),E("example"),z("demo"),kn(null),wt("已载入前海数据中心案例，可开始进行问题识别。"),N(!1)}',
+  'Yc=()=>{const v=window.__ARCHICONCEPT_DEMO_SITE_PACKAGE__,T={...ta,location:v.location.name,area:"40000",buildableArea:"40000",siteIntelligencePackage:v};Vn(T),Te({...v.location,location:{lng:v.location.lng,lat:v.location.lat}}),U(null),Ot(v.boundary.geometry.map(V=>({...V}))),vn(v.boundary.status),Di(v.boundary.areaM2),_a(v.boundary.perimeterM),Wn(v.entrances.map(V=>({...V}))),It("\\u5df2\\u5b8c\\u6210"),eo(500),Xr("\\u5df2\\u5b8c\\u6210"),Zr(v.surroundings),An([]),Hs(!1),setVisiblePoiLayers({traffic:!0}),window.__ARCHICONCEPT_REDLINE_SOURCE__=v.boundary.source,E("example"),z("demo"),kn(null),wt("\\u5df2\\u8f7d\\u5165\\u5b8c\\u6574\\u524d\\u6d77\\u77f3\\u516c\\u56ed Demo\\uff0c\\u5305\\u542b\\u573a\\u5730\\u7ea2\\u7ebf\\u3001\\u5165\\u53e3\\u4e0e\\u5468\\u8fb9\\u5206\\u6790\\u3002"),N(!1)}',
+  "complete example project with site editor data"
+);
+
+replaceOnce(
   'const La=(v,T)=>{',
   'const La=(v,T,keepViewport=!1)=>{',
   "location marker viewport option"
@@ -1826,6 +2045,18 @@ replaceOnce(
   'O.question||O.q]}),n.jsx("div",{className:"flex flex-wrap gap-2.5"',
   'O.question||O.q]}),O.reason&&n.jsxs("p",{className:"problem-question-reason",children:[n.jsx("span",{children:"\\u5fc5\\u987b\\u56de\\u7b54\\u7684\\u539f\\u56e0\\uff1a"}),O.reason]}),O.impact&&n.jsxs("p",{className:"problem-question-impact",children:[n.jsx("span",{children:"\\u5bf9\\u540e\\u7eed\\u5f71\\u54cd\\uff1a"}),Array.isArray(O.impact)?O.impact.join("\\u3001"):O.impact]}),n.jsx("div",{className:"flex flex-wrap gap-2.5"',
   "required question context"
+);
+
+replaceOnce(
+  'const U=O=>{if(!O)return"";let te=O;return te.includes("(")&&(te=te.split("(")[0].trim()),te.includes("（")&&(te=te.split("（")[0].trim()),te.slice(0,12)},Q=O=>',
+  'const U=O=>{if(!O)return"";let te=O;return te.includes("(")&&(te=te.split("(")[0].trim()),te.includes("（")&&(te=te.split("（")[0].trim()),te.slice(0,12)},J=O=>{const te=O.question||O.q||"",ye=String(O.inputType||O.answerType||"").toLowerCase(),Re=(O.options||[]).map(nt=>typeof nt=="string"?nt:nt.label||nt.value||""),nt=Re.some(Fe=>/硬性条件|建议条件/.test(Fe));if(/防水等级/.test(te)&&/抗浮/.test(te))return{type:"waterproof",unit:"m"};if(/停车/.test(te)&&/是否|可否|能否/.test(te))return{type:"parking",unit:"个"};if(["number","numeric","quantity"].includes(ye)||/停车.{0,8}(配建|标准|数量|要求|多少)|退界.{0,8}(距离|要求|多少)|结构.{0,6}跨度|抗浮.{0,8}(水位|标高)|建筑.{0,4}高度|净高|层数|面积|距离是多少|数量是多少/.test(te)){let Fe=O.unit||"";return Fe||(Fe=/停车/.test(te)?"个":/层数/.test(te)?"层":/面积/.test(te)?"㎡":/%|比例|率/.test(te)?"%":"m"),{type:"number",unit:Fe,boolean:!1}}const Fe=te.match(/[（(]([^）)]+)[）)]/),Z=Fe?.[1]?.split(/[、，,/]/).map(Le=>Le.trim()).filter(Boolean)||[];if(Z.length>=2&&Z.length<=5&&Z.every(Le=>Le.length<=10))return{type:"enumerated",options:Z,boolean:!1};if(nt&&/如何|方案是什么|具体措施|有哪些|怎样/.test(te))return{type:"text",boolean:!1};return{type:"choice",boolean:/是否|能否|可否|需不需要|是否必须|是否需要/.test(te)}},Q=O=>',
+  "required question answer type inference"
+);
+
+replaceOnce(
+  'n.jsx("div",{className:"flex flex-wrap gap-2.5",children:xe.map((Re,nt)=>{const Fe=typeof Re=="string"?Re:Re.label,Z=typeof Re=="string"?Re:Re.value,Le=U(Fe),qe=ye===Z,et=Fe.includes("不确定")||Fe.includes("系统")||Fe.includes("估算");return n.jsx("button",{type:"button",onClick:()=>ze(O.id,Z),className:`px-3.5 py-2 border text-[11.5px] rounded-lg transition-all font-medium cursor-pointer focus:outline-none ${qe?"bg-[#111] text-white border-[#111] shadow":et?"bg-[#FCFBF8] border-zinc-200 text-zinc-400 hover:border-zinc-400 hover:text-zinc-600 border-dashed":"bg-white border-[#EBEBE7] text-[#555] hover:bg-zinc-50 hover:text-[#111]"}`,title:Fe,children:Le},nt)})})',
+  '(()=>{const Re=J(O),nt=typeof ye=="string"&&/估算|系统|不确定|暂不/.test(ye);if(Re.type==="parking"){const Fe=nt?"":String(ye||""),Z=Fe.match(/停车位数量\\s*(\\d+(?:\\.\\d+)?)/)?.[1]||"",Le=/地下停车\\s*可采用/.test(Fe)?"可采用":/地下停车\\s*不采用/.test(Fe)?"不采用":"";return n.jsxs("div",{className:"problem-answer-structured",children:[n.jsxs("div",{className:"problem-answer-composite",children:[n.jsxs("label",{children:[n.jsx("span",{children:"停车位数量"}),n.jsxs("div",{className:"problem-answer-input-row",children:[n.jsx("input",{type:"number",min:"0",step:"1",inputMode:"numeric",value:Z,placeholder:"请输入车位数",onChange:qe=>{const et=qe.target.value;ze(O.id,et||Le?`停车位数量 ${et||"待确认"} 个；地下停车 ${Le||"待确认"}`:"")}}),n.jsx("span",{className:"problem-answer-unit",children:"个"})]})]}),n.jsxs("label",{children:[n.jsx("span",{children:"地下空间停车"}),n.jsx("div",{className:"problem-answer-choice is-compact",children:["可采用","不采用"].map(qe=>n.jsx("button",{type:"button",onClick:()=>ze(O.id,`停车位数量 ${Z||"待确认"} 个；地下停车 ${qe}`),className:`problem-answer-choice-button ${Le===qe?"is-selected":""}`,children:qe},qe))})]})]}),n.jsx("button",{type:"button",onClick:()=>ze(O.id,"暂不确定，由系统估算"),className:`problem-answer-estimate ${nt?"is-selected":""}`,children:"暂不确定，由系统估算"})]})}if(Re.type==="text"){return n.jsxs("div",{className:"problem-answer-structured",children:[n.jsx("textarea",{className:"problem-answer-textarea",rows:"3",value:nt?"":ye||"",placeholder:"请输入具体设计要求、控制条件或允许范围",onChange:Fe=>ze(O.id,Fe.target.value)}),n.jsx("button",{type:"button",onClick:()=>ze(O.id,"暂不确定，由系统估算"),className:`problem-answer-estimate ${nt?"is-selected":""}`,children:"暂不确定，由系统估算"})]})}if(Re.type==="number"){const Fe=nt?"":String(ye||"").match(/-?\\d+(?:\\.\\d+)?/)?.[0]||"";return n.jsxs("div",{className:"problem-answer-structured",children:[n.jsxs("div",{className:"problem-answer-input-row",children:[n.jsx("input",{type:"number",step:"any",inputMode:"decimal",value:Fe,placeholder:"请输入具体数值",onChange:Z=>ze(O.id,Z.target.value?`${Z.target.value} ${Re.unit}`:""),"aria-label":O.question||O.q}),n.jsx("span",{className:"problem-answer-unit",children:Re.unit})]}),n.jsx("button",{type:"button",onClick:()=>ze(O.id,"暂不确定，由系统估算"),className:`problem-answer-estimate ${nt?"is-selected":""}`,children:"暂不确定，由系统估算"})]})}if(Re.type==="waterproof"){const Fe=nt?"":String(ye||""),Z=Fe.match(/防水等级\\s*([^；;，,\\s]+)/)?.[1]||"",Le=Fe.match(/抗浮(?:设计)?水位\\s*(-?\\d+(?:\\.\\d+)?)/)?.[1]||"";return n.jsxs("div",{className:"problem-answer-structured",children:[n.jsxs("div",{className:"problem-answer-composite",children:[n.jsxs("label",{children:[n.jsx("span",{children:"防水等级"}),n.jsxs("select",{value:Z,onChange:qe=>{const et=qe.target.value;ze(O.id,et||Le?`防水等级 ${et||"待确认"}；抗浮设计水位 ${Le||"待确认"} m`:"")},children:[n.jsx("option",{value:"",children:"请选择"}),n.jsx("option",{value:"一级",children:"一级"}),n.jsx("option",{value:"二级",children:"二级"}),n.jsx("option",{value:"三级",children:"三级"}),n.jsx("option",{value:"四级",children:"四级"})]})]}),n.jsxs("label",{children:[n.jsx("span",{children:"抗浮设计水位"}),n.jsxs("div",{className:"problem-answer-input-row",children:[n.jsx("input",{type:"number",step:"any",inputMode:"decimal",value:Le,placeholder:"请输入标高",onChange:qe=>{const et=qe.target.value;ze(O.id,Z||et?`防水等级 ${Z||"待确认"}；抗浮设计水位 ${et||"待确认"} m`:"")}}),n.jsx("span",{className:"problem-answer-unit",children:"m"})]})]})]}),n.jsx("button",{type:"button",onClick:()=>ze(O.id,"暂不确定，由系统估算"),className:`problem-answer-estimate ${nt?"is-selected":""}`,children:"暂不确定，由系统估算"})]})}const Fe=xe.some(qe=>{const et=typeof qe=="string"?qe:qe.label||qe.value||"";return /硬性条件|建议条件/.test(et)}),Z=Re.type==="enumerated"?[...Re.options,"暂不确定，由系统估算"]:xe;return n.jsx("div",{className:"problem-answer-choice",children:Z.map((qe,et)=>{const vt=typeof qe=="string"?qe:qe.label,At=typeof qe=="string"?qe:qe.value,Pt=Re.boolean&&Fe?et===0?"是，作为明确条件":et===1?"否，不作为强制条件":vt:vt,Dt=Re.boolean&&Fe?Pt:At,Ot=ye===Dt,Ut=Pt.includes("不确定")||Pt.includes("系统")||Pt.includes("估算");return n.jsx("button",{type:"button",onClick:()=>ze(O.id,Dt),className:`problem-answer-choice-button ${Ot?"is-selected":""} ${Ut?"is-estimate":""}`,title:Pt,children:Pt},et)})})})()',
+  "required question structured answer controls"
 );
 
 replaceOnce(
