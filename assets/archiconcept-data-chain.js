@@ -960,10 +960,16 @@ const calculateAreaProgramItems = (items = []) => {
       return item.areaM2;
     }
     const nextStack = new Set(stack).add(item.id);
-    item.areaM2 = children.reduce(
+    item.childAreaM2 = children.reduce(
       (sum, child) => sum + calculate(child, nextStack),
       0
     );
+    item.areaM2 =
+      Number(item.declaredAreaM2) > 0
+        ? Number(item.declaredAreaM2)
+        : item.childAreaM2;
+    item.areaDifferenceM2 =
+      item.childAreaM2 - item.areaM2;
     return item.areaM2;
   };
   normalized.forEach((item) => calculate(item));
@@ -1054,7 +1060,9 @@ const parseAreaProgram = (value = "", targetAreaM2 = 0) => {
 
     const isPercent = /%|％/.test(unit);
     const totalAreaM2 =
-      isPercent && targetAreaM2 ? (targetAreaM2 * numeric) / 100 : numeric;
+      isPercent && targetAreaM2
+        ? (targetAreaM2 * numeric) / 100
+        : numeric * quantity;
     const id = `program-${index + 1}`;
     const parentId =
       level === 1
@@ -1085,8 +1093,25 @@ const parseAreaProgram = (value = "", targetAreaM2 = 0) => {
   return calculateAreaProgramItems(items);
 };
 
-const serializeAreaProgram = (items = []) =>
-  calculateAreaProgramItems(items)
+const serializeAreaProgram = (items = []) => {
+  const normalized = calculateAreaProgramItems(items);
+  const childrenByParent = normalized.reduce((map, item) => {
+    if (!item.parentId) return map;
+    if (!map[item.parentId]) map[item.parentId] = [];
+    map[item.parentId].push(item);
+    return map;
+  }, {});
+  const ordered = [];
+  const visited = new Set();
+  const appendBranch = (item) => {
+    if (!item || visited.has(item.id)) return;
+    visited.add(item.id);
+    ordered.push(item);
+    (childrenByParent[item.id] || []).forEach(appendBranch);
+  };
+  normalized.filter((item) => !item.parentId).forEach(appendBranch);
+  normalized.forEach(appendBranch);
+  return ordered
     .map(
       (item) =>
         `${item.level}级｜${item.name}｜${item.quantity}×${Number(
@@ -1094,6 +1119,7 @@ const serializeAreaProgram = (items = []) =>
         ).toFixed(Number(item.unitAreaM2) % 1 ? 1 : 0)}㎡`
     )
     .join("\n");
+};
 
 const buildAreaProgramModel = (value = "", targetAreaM2 = 0) => {
   const items = parseAreaProgram(value, targetAreaM2);
@@ -1101,7 +1127,11 @@ const buildAreaProgramModel = (value = "", targetAreaM2 = 0) => {
     targetGfaM2: Number(targetAreaM2) || null,
     items,
     allocatedAreaM2: items
-      .filter((item) => !items.some((child) => child.parentId === item.id))
+      .filter(
+        (item) =>
+          !item.parentId ||
+          !items.some((parent) => parent.id === item.parentId)
+      )
       .reduce((sum, item) => sum + Number(item.areaM2 || 0), 0),
     legacyText:
       value && typeof value === "object"
@@ -1284,20 +1314,70 @@ const defaultFunctionAttributes = (category, index) => ({
 });
 
 const buildBubbleGraph = (functionTree = []) => {
-  const active = functionTree.filter((item) => item.level === 1);
-  const maxArea = Math.max(...active.map((item) => Number(item.areaM2) || 0), 1);
-  return {
-    nodes: active.map((item, index) => {
-      const angle = (Math.PI * 2 * index) / Math.max(active.length, 1) - Math.PI / 2;
-      const radius = active.length <= 4 ? 30 : 35;
-      return {
-        id: item.id,
-        label: item.name,
-        x: Math.round(50 + Math.cos(angle) * radius),
-        y: Math.round(50 + Math.sin(angle) * radius),
-        size: Math.round(18 + ((Number(item.areaM2) || 0) / maxArea) * 20)
+  const active = calculateAreaProgramItems(functionTree);
+  const roots = active.filter(
+    (item) =>
+      Number(item.level) === 1 ||
+      !active.some((candidate) => candidate.id === item.parentId)
+  );
+  const byParent = active.reduce((map, item) => {
+    if (!item.parentId) return map;
+    if (!map[item.parentId]) map[item.parentId] = [];
+    map[item.parentId].push(item);
+    return map;
+  }, {});
+  const maxArea = Math.max(...roots.map((item) => Number(item.areaM2) || 0), 1);
+  const nodes = [];
+  const hierarchyEdges = [];
+  const placeChildren = (parent, parentNode, depth = 2) => {
+    const children = byParent[parent.id] || [];
+    children.forEach((child, index) => {
+      const angle =
+        (Math.PI * 2 * index) / Math.max(children.length, 1) -
+        Math.PI / 2 +
+        (parentNode.x / 100) * 0.45;
+      const orbit =
+        depth === 2
+          ? Math.max(15, Number(parentNode.size || 0) / 2 + 9)
+          : Math.max(8, Number(parentNode.size || 0) / 2 + 5);
+      const node = {
+        id: child.id,
+        parentId: parent.id,
+        level: Number(child.level) || depth,
+        label: child.name,
+        x: Math.max(5, Math.min(95, parentNode.x + Math.cos(angle) * orbit)),
+        y: Math.max(5, Math.min(95, parentNode.y + Math.sin(angle) * orbit)),
+        size: depth === 2 ? 12 : 8
       };
-    })
+      nodes.push(node);
+      hierarchyEdges.push({
+        id: `hierarchy-${parent.id}-${child.id}`,
+        source: parent.id,
+        target: child.id
+      });
+      placeChildren(child, node, depth + 1);
+    });
+  };
+  roots.forEach((item, index) => {
+    const angle =
+      (Math.PI * 2 * index) / Math.max(roots.length, 1) - Math.PI / 2;
+    const radius = roots.length <= 4 ? 27 : 31;
+    const isSingleRoot = roots.length === 1;
+    const node = {
+      id: item.id,
+      parentId: null,
+      level: 1,
+      label: item.name,
+      x: isSingleRoot ? 50 : Math.round(50 + Math.cos(angle) * radius),
+      y: isSingleRoot ? 50 : Math.round(50 + Math.sin(angle) * radius),
+      size: Math.round(18 + ((Number(item.areaM2) || 0) / maxArea) * 18)
+    };
+    nodes.push(node);
+    placeChildren(item, node);
+  });
+  return {
+    nodes,
+    hierarchyEdges
   };
 };
 
@@ -1308,7 +1388,13 @@ const detectFunctionConflicts = (data = {}) => {
   const attributes = asObject(data.functionAttributes);
   const circulation = asObject(data.circulationSystem);
   const edges = asArray(data.relationshipGraph?.edges);
-  const allocated = functions.reduce(
+  const allocated = functions
+    .filter(
+      (item) =>
+        !item.parentId ||
+        !functions.some((parent) => parent.id === item.parentId)
+    )
+    .reduce(
     (sum, item) => sum + Math.max(0, Number(item.areaM2) || 0),
     0
   );
@@ -1450,9 +1536,12 @@ const createInitialFunctionConstructData = (boundaryPackage = {}) => {
       defaultFunctionAttributes(item.category, index)
     ])
   );
-  const edges = functionTree.slice(1).map((item, index) => ({
+  const primaryFunctions = functionTree.filter(
+    (item) => Number(item.level) === 1
+  );
+  const edges = primaryFunctions.slice(1).map((item, index) => ({
     id: `relation-${index + 1}`,
-    source: functionTree[index].id,
+    source: primaryFunctions[index].id,
     target: item.id,
     strength: index < 2 ? "adjacent" : "near"
   }));
@@ -1463,7 +1552,8 @@ const createInitialFunctionConstructData = (boundaryPackage = {}) => {
       allocatedM2: functionTree
         .filter(
           (item) =>
-            !functionTree.some((child) => child.parentId === item.id)
+            !item.parentId ||
+            !functionTree.some((parent) => parent.id === item.parentId)
         )
         .reduce((sum, item) => sum + Number(item.areaM2 || 0), 0),
       source: controls.grossFloorAreaM2

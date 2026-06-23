@@ -132,7 +132,7 @@ test("parses a detailed brief area schedule into a hierarchy", () => {
   assert.equal(items[4].areaM2, 650);
 });
 
-test("parent function area follows child totals", () => {
+test("parent function keeps its declared area and validates child totals", () => {
   const items = calculateAreaProgramItems([
     {
       id: "parent",
@@ -157,8 +157,54 @@ test("parent function area follows child totals", () => {
       unitAreaM2: 100
     }
   ]);
-  assert.equal(items.find((item) => item.id === "parent").areaM2, 500);
-  assert.equal(buildAreaProgramModel({ items }).allocatedAreaM2, 500);
+  const parent = items.find((item) => item.id === "parent");
+  assert.equal(parent.areaM2, 999);
+  assert.equal(parent.childAreaM2, 500);
+  assert.equal(parent.areaDifferenceM2, -499);
+  assert.equal(buildAreaProgramModel({ items }).allocatedAreaM2, 999);
+});
+
+test("serializes area hierarchy in parent-child order", async () => {
+  const { serializeAreaProgram } = await import(
+    "../assets/archiconcept-data-chain.js"
+  );
+  const value = serializeAreaProgram([
+    {
+      id: "commercial",
+      name: "社区商业",
+      level: 1,
+      quantity: 1,
+      unitAreaM2: 550
+    },
+    {
+      id: "culture",
+      name: "文化休闲活动",
+      level: 1,
+      quantity: 1,
+      unitAreaM2: 650
+    },
+    {
+      id: "market",
+      parentId: "commercial",
+      name: "菜市场及食品店铺",
+      level: 2,
+      quantity: 1,
+      unitAreaM2: 300
+    },
+    {
+      id: "coffee",
+      parentId: "culture",
+      name: "休闲饮品",
+      level: 2,
+      quantity: 1,
+      unitAreaM2: 200
+    }
+  ]);
+
+  assert.deepEqual(
+    value.split("\n").map((row) => row.split("｜")[1]),
+    ["社区商业", "菜市场及食品店铺", "文化休闲活动", "休闲饮品"]
+  );
 });
 
 test("parses demo range schedules and their child functions", () => {
@@ -168,7 +214,9 @@ test("parses demo range schedules and their child functions", () => {
   assert.equal(items.length, 6);
   assert.equal(items[0].level, 1);
   assert.equal(items[1].parentId, items[0].id);
-  assert.equal(items[0].areaM2, 21000);
+  assert.equal(items[0].areaM2, 26500);
+  assert.equal(items[0].childAreaM2, 21000);
+  assert.equal(items[0].areaDifferenceM2, -5500);
   assert.equal(items[3].level, 1);
 });
 

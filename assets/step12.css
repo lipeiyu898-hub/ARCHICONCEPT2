@@ -206,7 +206,7 @@
 
 .step12-area-row {
   display: grid;
-  grid-template-columns: 72px minmax(190px, 1.5fr) minmax(100px, 0.8fr) 72px minmax(100px, 0.8fr) 94px;
+  grid-template-columns: 72px minmax(190px, 1.5fr) minmax(100px, 0.8fr) 72px minmax(120px, 0.9fr) 142px;
   gap: 12px;
   align-items: center;
   min-width: 760px;
@@ -237,6 +237,39 @@
   padding-left: calc((var(--area-level, 1) - 1) * 18px);
   color: #30302d;
   font-weight: 650;
+}
+
+.step12-area-row > strong small {
+  display: block;
+  margin-top: 3px;
+  color: #999993;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.step12-area-row.is-level-1 > strong {
+  font-weight: 750;
+}
+
+.step12-area-row.is-level-2 > strong,
+.step12-area-row.is-level-3 > strong {
+  position: relative;
+}
+
+.step12-area-row.is-level-2 > strong::before,
+.step12-area-row.is-level-3 > strong::before {
+  position: absolute;
+  top: 50%;
+  left: calc((var(--area-level, 1) - 1) * 18px - 12px);
+  width: 7px;
+  height: 1px;
+  background: #c9c9c3;
+  content: "";
+}
+
+.step12-area-row.has-area-difference > strong small {
+  color: #9b6740;
 }
 
 .step12-area-row i {
@@ -333,6 +366,12 @@
 
 .step12-modal.is-compact {
   width: min(430px, 100%);
+}
+
+.step12-modal.is-area-structure {
+  width: min(920px, 100%);
+  max-height: min(760px, calc(100dvh - 48px));
+  overflow: auto;
 }
 
 .step12-modal > header,
@@ -432,6 +471,147 @@
   color: #969690;
   font-size: 10.5px;
   line-height: 1.55;
+}
+
+.step12-area-structure-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 15px 18px;
+  border-bottom: 1px solid #ecece7;
+  background: #fafaf8;
+}
+
+.step12-area-structure-intro p {
+  max-width: 560px;
+  margin: 0;
+  color: #73736e;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.step12-area-structure-intro div {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.step12-area-structure-intro strong,
+.step12-area-structure-intro span {
+  display: block;
+}
+
+.step12-area-structure-intro strong {
+  color: #272725;
+  font-size: 15px;
+}
+
+.step12-area-structure-intro span {
+  margin-top: 2px;
+  color: #9a9a94;
+  font-size: 9.5px;
+}
+
+.step12-area-child-head,
+.step12-area-child-row {
+  display: grid;
+  grid-template-columns: 76px minmax(170px, 1.4fr) minmax(150px, 1fr) 74px 106px 52px;
+  gap: 10px;
+  align-items: center;
+  min-width: 760px;
+}
+
+.step12-area-child-head {
+  padding: 10px 18px 8px;
+  color: #92928c;
+  font-size: 9.5px;
+  font-weight: 650;
+}
+
+.step12-area-child-list {
+  display: grid;
+  max-height: 330px;
+  overflow: auto;
+  border-top: 1px solid #ecece7;
+  border-bottom: 1px solid #ecece7;
+}
+
+.step12-area-child-row {
+  padding: 9px 18px;
+  border-top: 1px solid #f0f0ec;
+}
+
+.step12-area-child-row:first-child {
+  border-top: 0;
+}
+
+.step12-area-child-row input,
+.step12-area-child-row select {
+  width: 100%;
+  height: 36px;
+  padding: 0 9px;
+  border: 1px solid #dfdfd9;
+  border-radius: 6px;
+  outline: 0;
+  background: #fff;
+  color: #343431;
+  font-size: 10.5px;
+}
+
+.step12-area-child-row input:focus,
+.step12-area-child-row select:focus {
+  border-color: #7d7d77;
+  box-shadow: 0 0 0 3px rgb(30 30 28 / 6%);
+}
+
+.step12-area-child-row select:disabled {
+  background: #f6f6f3;
+  color: #85857f;
+}
+
+.step12-area-child-row > button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #898983;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.step12-area-child-row > button:hover {
+  color: #8b3f32;
+}
+
+.step12-area-child-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+}
+
+.step12-area-child-actions button {
+  padding: 7px 10px;
+  border: 1px solid #dcdcd6;
+  border-radius: 6px;
+  background: #fff;
+  color: #454541;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.step12-area-child-actions span {
+  margin-left: auto;
+  color: #9a9a94;
+  font-size: 9.5px;
+}
+
+.step12-area-child-summary {
+  min-height: 20px;
+  padding: 0 18px 12px;
+  color: #74746f;
+  font-size: 10px;
+  text-align: right;
 }
 
 .step12-modal > footer {

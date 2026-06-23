@@ -117,6 +117,82 @@ window.__ARCHICONCEPT_PARSE_AREA__ = parseAreaValue;
 window.__ARCHICONCEPT_SERIALIZE_AREA__ = serializeAreaM2;
 window.__ARCHICONCEPT_FORMAT_AREA__ = formatAreaM2;
 
+const normalizeImportedAreaProgram = (value, payload = {}) => {
+  const hasValue = (candidate) =>
+    candidate !== undefined &&
+    candidate !== null &&
+    (typeof candidate !== "string" || candidate.trim() !== "") &&
+    (!Array.isArray(candidate) || candidate.length > 0);
+  const candidate = [
+    value,
+    payload.functionAreaProgram,
+    payload.functionalAreaProgram,
+    payload.areaSchedule,
+    payload.functionAreas,
+    payload.areaComposition,
+    payload.programAreas
+  ].find(hasValue);
+  if (!hasValue(candidate)) return "";
+  if (typeof candidate === "string") return candidate.trim();
+
+  const cleanName = (name, index) =>
+    String(name || `功能 ${index + 1}`)
+      .replace(/^[（(]?\d+[）).、]\s*/, "")
+      .trim();
+  const formatRows = (items, inheritedLevel = 1) =>
+    (Array.isArray(items) ? items : [])
+      .flatMap((item, index) => {
+        if (typeof item === "string") return [item];
+        if (!item || typeof item !== "object") return [];
+        const name =
+          item.name ||
+          item.functionName ||
+          item.program ||
+          item.label ||
+          item.category;
+        const children =
+          item.children || item.items || item.subItems || item.functions;
+        const level = Number(item.level) || inheritedLevel;
+        const quantity = Number(item.quantity || item.count) || 1;
+        const explicitUnitArea = Number(
+          item.unitAreaM2 || item.unitArea || item.areaPerUnit
+        );
+        const totalArea = Number(
+          item.totalAreaM2 ||
+            item.totalArea ||
+            item.areaM2 ||
+            item.area ||
+            item.value
+        );
+        const unitArea =
+          Number.isFinite(explicitUnitArea) && explicitUnitArea > 0
+            ? explicitUnitArea
+            : Number.isFinite(totalArea) && totalArea > 0
+              ? totalArea / quantity
+              : 0;
+        const row =
+          name && Number.isFinite(unitArea) && unitArea > 0
+            ? `${level}级｜${cleanName(name, index)}｜${quantity}×${unitArea}㎡`
+            : "";
+        return [
+          row,
+          ...formatRows(children, Math.min(level + 1, 3))
+        ].filter(Boolean);
+      });
+
+  const items = Array.isArray(candidate)
+    ? candidate
+    : candidate.items ||
+      candidate.functions ||
+      candidate.rows ||
+      candidate.children ||
+      Object.entries(candidate).map(([name, area]) => ({ name, area }));
+  return formatRows(items).join("\n");
+};
+
+window.__ARCHICONCEPT_NORMALIZE_IMPORTED_AREA_PROGRAM__ =
+  normalizeImportedAreaProgram;
+
 const makePreflightItem = (key, overrides = {}) => {
   const [field, state, impact, section] = PREFLIGHT_FIELD_META[key] || [
     key,
@@ -1532,6 +1608,19 @@ if (!response.ok) {
 }
 
 let source = await response.text();
+
+source = source.replaceAll(
+  'Pa("projectBriefCache",{projectInfo:V})',
+  'Pa("projectBriefCacheV2",{projectInfo:V})'
+);
+source = source.replaceAll(
+  'areaProgram:I.areaProgram||""',
+  'areaProgram:window.__ARCHICONCEPT_NORMALIZE_IMPORTED_AREA_PROGRAM__(I.areaProgram,I)||""'
+);
+source = source.replaceAll(
+  'areaProgram:J.areaProgram||""',
+  'areaProgram:window.__ARCHICONCEPT_NORMALIZE_IMPORTED_AREA_PROGRAM__(J.areaProgram,J)||""'
+);
 
 const DEMO_SITE_PACKAGE = {
   version: "1.0",

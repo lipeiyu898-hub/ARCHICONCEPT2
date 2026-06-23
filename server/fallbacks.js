@@ -1,3 +1,183 @@
+const hasContent = (value) =>
+  value !== undefined &&
+  value !== null &&
+  (typeof value !== "string" || value.trim() !== "") &&
+  (!Array.isArray(value) || value.length > 0) &&
+  (typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.keys(value).length > 0);
+
+const cleanAreaName = (value = "") =>
+  String(value)
+    .replace(/^[（(]?\d+[）).、]\s*/, "")
+    .replace(/[：:，,、\s]+$/, "")
+    .trim();
+
+export function extractAreaProgram(text = "") {
+  const lines = String(text)
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((raw) => ({ raw, text: raw.replace(/\s+/g, " ").trim() }))
+    .filter((item) => item.text);
+  const headingIndex = lines.findIndex((item) =>
+    /(?:面积组成|功能面积(?:组成|分配|分表)?|面积配比|建设规模及内容)/.test(
+      item.text
+    )
+  );
+  const source =
+    headingIndex >= 0
+      ? lines.slice(headingIndex + 1, headingIndex + 80)
+      : lines;
+  const rows = [];
+  let parentId = null;
+  let parentSequence = 0;
+  let collected = false;
+  let missesAfterCollection = 0;
+
+  for (const { raw, text: line } of source) {
+    if (
+      collected &&
+      /^(?:[一二三四五六七八九十]+[、.．]|\d+[、.．])/.test(line) &&
+      !/(?:㎡|m²|m2|平方米|平米)/i.test(line)
+    ) {
+      missesAfterCollection += 1;
+      if (missesAfterCollection >= 2) break;
+    }
+
+    const quantityMatch = line.match(
+      /^(.+?)[：:]?\s*(\d+)\s*(?:间|个|处|套|组)[，,、]?\s*(?:每间|每个|每处|每套|每组)\s*(\d+(?:\.\d+)?)\s*(?:㎡|m²|m2|平方米|平米)/i
+    );
+    if (quantityMatch) {
+      const name = cleanAreaName(quantityMatch[1]);
+      if (name && !/(?:总建筑面积|用地面积|基地面积|计容面积)/.test(name)) {
+        rows.push(
+          `${parentId ? 2 : 1}级｜${name}｜${quantityMatch[2]}×${quantityMatch[3]}㎡`
+        );
+        collected = true;
+        missesAfterCollection = 0;
+      }
+      continue;
+    }
+
+    const areaMatch = line.match(
+      /^(.+?)(?:[：:\s]+)?(?:约\s*)?(\d[\d,]*(?:\.\d+)?)\s*(?:㎡|m²|m2|平方米|平米)(.*)$/i
+    );
+    if (!areaMatch) continue;
+    const name = cleanAreaName(areaMatch[1]);
+    if (
+      !name ||
+      /(?:总建筑面积|用地面积|基地面积|计容面积|红线面积|占地面积)/.test(name)
+    ) {
+      continue;
+    }
+    const numbered = /^[（(]?\d+[）).、]/.test(line);
+    const includesChildren = /包括|其中|含/.test(areaMatch[3] || "");
+    const level = numbered || !parentId ? 1 : 2;
+    if (level === 1) {
+      parentSequence += 1;
+      parentId = `area-parent-${parentSequence}`;
+    }
+    rows.push(
+      `${level}级｜${name}｜1×${areaMatch[2].replaceAll(",", "")}㎡`
+    );
+    collected = true;
+    missesAfterCollection = 0;
+    if (!includesChildren && numbered) parentId = null;
+  }
+
+  return rows.join("\n");
+}
+
+export function normalizeAreaProgramValue(value) {
+  if (!hasContent(value)) return "";
+  if (typeof value === "string") return value.trim();
+  const items = Array.isArray(value)
+    ? value
+    : value.items ||
+      value.functions ||
+      value.rows ||
+      value.children ||
+      value.areaProgram ||
+      Object.entries(value).map(([name, area]) => ({ name, area }));
+  if (!Array.isArray(items)) return String(value);
+  const formatItems = (areaItems, inheritedLevel = 1) =>
+    areaItems.flatMap((item, index) => {
+      if (typeof item === "string") return item;
+      if (!item || typeof item !== "object") return [];
+      const name =
+        item.name ||
+        item.functionName ||
+        item.program ||
+        item.label ||
+        item.category ||
+        `功能 ${index + 1}`;
+      const level =
+        Number(item.level) || (item.parentId ? 2 : inheritedLevel);
+      const quantity = Number(item.quantity || item.count) || 1;
+      const explicitUnitArea = Number(
+        item.unitAreaM2 || item.unitArea || item.areaPerUnit
+      );
+      const totalArea = Number(
+        item.totalAreaM2 ||
+          item.totalArea ||
+          item.areaM2 ||
+          item.area ||
+          item.value
+      );
+      const unitArea =
+        Number.isFinite(explicitUnitArea) && explicitUnitArea > 0
+          ? explicitUnitArea
+          : Number.isFinite(totalArea) && totalArea > 0
+            ? totalArea / quantity
+            : 0;
+      const children =
+        item.children || item.items || item.subItems || item.functions;
+      return [
+        unitArea
+          ? `${level}级｜${cleanAreaName(name)}｜${quantity}×${unitArea}㎡`
+          : "",
+        ...(Array.isArray(children)
+          ? formatItems(children, Math.min(level + 1, 3))
+          : [])
+      ].filter(Boolean);
+    });
+  return formatItems(items).join("\n");
+}
+
+const areaProgramHierarchyScore = (value) => {
+  const normalized = normalizeAreaProgramValue(value);
+  if (!normalized) return 0;
+  return normalized.split("\n").reduce((score, row) => {
+    const level = Number(row.match(/^([123])级/)?.[1]) || 1;
+    return score + (level === 1 ? 1 : level === 2 ? 4 : 6);
+  }, 0);
+};
+
+export function mergeBriefExtraction(fallback = {}, extracted = {}) {
+  const aliases = [
+    extracted.areaProgram,
+    extracted.functionAreaProgram,
+    extracted.functionalAreaProgram,
+    extracted.areaSchedule,
+    extracted.functionAreas,
+    extracted.areaComposition,
+    extracted.programAreas
+  ];
+  const extractedArea = aliases.find(hasContent);
+  const merged = { ...fallback };
+  Object.entries(extracted || {}).forEach(([key, value]) => {
+    if (hasContent(value)) merged[key] = value;
+  });
+  const fallbackArea = normalizeAreaProgramValue(fallback.areaProgram);
+  const normalizedExtractedArea = normalizeAreaProgramValue(extractedArea);
+  merged.areaProgram =
+    areaProgramHierarchyScore(fallbackArea) >
+    areaProgramHierarchyScore(normalizedExtractedArea)
+      ? fallbackArea
+      : normalizedExtractedArea || fallbackArea;
+  return merged;
+}
+
 export function parseBriefFallback(text = "") {
   const pick = (patterns) => {
     for (const pattern of patterns) {
@@ -33,7 +213,7 @@ export function parseBriefFallback(text = "") {
     siteInfo: pick([/(?:场地条件|基地条件|现状条件)[:：\s]*([^\n]+)/]) || text.slice(0, 240),
     program: pick([/(?:核心功能需求|功能需求|建设内容)[:：\s]*([^\n]+)/]),
     targetUsers: pick([/(?:使用人群|目标人群|服务对象)[:：\s]*([^\n]+)/]),
-    areaProgram: pick([/(?:面积组成|功能面积|面积配比)[:：\s]*([^\n]+)/]),
+    areaProgram: extractAreaProgram(text),
     keywords: Array.from(new Set((text.match(/[\u4e00-\u9fa5A-Za-z]{2,12}/g) || []).slice(0, 12))),
     missingFields: [],
     reviewItems: ["请核对规划指标、功能面积与场地边界条件。"],

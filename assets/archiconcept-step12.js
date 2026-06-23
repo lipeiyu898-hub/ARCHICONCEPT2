@@ -338,9 +338,13 @@ const formatArea = (value) =>
     Number(value) || 0
   );
 
-const leafAreaTotal = (items) =>
+const rootAreaTotal = (items) =>
   items
-    .filter((item) => !items.some((child) => child.parentId === item.id))
+    .filter(
+      (item) =>
+        !item.parentId ||
+        !items.some((parent) => parent.id === item.parentId)
+    )
     .reduce((sum, item) => sum + Number(item.areaM2 || 0), 0);
 
 const renderChips = (items, type, emptyText) =>
@@ -359,18 +363,30 @@ const renderAreaRows = (items) =>
   items.length
     ? items
         .map((item) => {
-          const hasChildren = items.some(
-            (child) => child.parentId === item.id
-          );
+          const children = items.filter((child) => child.parentId === item.id);
+          const hasChildren = children.length > 0;
+          const difference = Number(item.areaDifferenceM2) || 0;
           return `
-          <div class="step12-area-row" role="row" data-area-id="${escapeHtml(item.id)}">
+          <div class="step12-area-row is-level-${item.level} ${Math.abs(difference) > 0.5 ? "has-area-difference" : ""}" role="row" data-area-id="${escapeHtml(item.id)}">
             <span><i>${item.level} 级</i></span>
-            <strong style="--area-level:${item.level}">${escapeHtml(item.name)}</strong>
+            <strong style="--area-level:${item.level}">
+              ${escapeHtml(item.name)}
+              ${
+                hasChildren
+                  ? `<small>包含 ${children.length} 个直属子项${
+                      Math.abs(difference) > 0.5
+                        ? ` · 与任务书声明相差 ${formatArea(Math.abs(difference))}㎡`
+                        : " · 明细合计一致"
+                    }</small>`
+                  : ""
+              }
+            </strong>
             <span>${formatArea(item.areaM2)} ㎡</span>
-            <span>${hasChildren ? "—" : item.quantity}</span>
-            <span>${hasChildren ? "自动汇总" : `${formatArea(item.unitAreaM2)} ㎡`}</span>
+            <span>${hasChildren ? "汇总" : item.quantity}</span>
+            <span>${hasChildren ? `子项合计 ${formatArea(item.childAreaM2 || item.areaM2)}㎡` : `${formatArea(item.unitAreaM2)} ㎡`}</span>
             <span class="step12-area-actions">
               <button type="button" data-action="edit-area" data-id="${escapeHtml(item.id)}">编辑</button>
+              ${item.level === 1 ? `<button type="button" data-action="complete-area-children" data-id="${escapeHtml(item.id)}">补全下级</button>` : ""}
               <button type="button" data-action="delete-area" data-id="${escapeHtml(item.id)}">删除</button>
             </span>
           </div>`;
@@ -399,7 +415,7 @@ const renderRequirementEditor = (packageData) => {
 
   const model = currentRequirementModel(packageData);
   const items = calculateAreaProgramItems(model.areaItems);
-  const allocated = leafAreaTotal(items);
+  const allocated = rootAreaTotal(items);
   const remaining = model.targetGfaM2 ? model.targetGfaM2 - allocated : null;
   const signature = JSON.stringify({
     siteCondition: model.siteCondition,
@@ -465,6 +481,166 @@ const renderRequirementEditor = (packageData) => {
 const closeRequirementModal = () => {
   document.querySelector(".step12-modal-overlay")?.remove();
   requirementModal = null;
+};
+
+let areaChildRowSequence = 0;
+
+const areaDescendantIds = (items, parentId) => {
+  const ids = new Set();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    items.forEach((item) => {
+      if (
+        (item.parentId === parentId || ids.has(item.parentId)) &&
+        !ids.has(item.id)
+      ) {
+        ids.add(item.id);
+        changed = true;
+      }
+    });
+  }
+  return ids;
+};
+
+const childRowMarkup = (item = {}, defaultLevel = 2) => {
+  const rowKey = item.id || `area-child-${Date.now()}-${++areaChildRowSequence}`;
+  const level = Number(item.level) || defaultLevel;
+  return `
+    <div class="step12-area-child-row" data-child-row="${escapeHtml(rowKey)}" data-existing-id="${escapeHtml(item.id || "")}" data-parent-ref="${escapeHtml(item.parentId || "")}">
+      <select name="childLevel" aria-label="功能层级">
+        <option value="2" ${level === 2 ? "selected" : ""}>二级</option>
+        <option value="3" ${level === 3 ? "selected" : ""}>三级</option>
+      </select>
+      <input name="childName" value="${escapeHtml(item.name || "")}" placeholder="${level === 3 ? "三级功能名称" : "二级功能名称"}" aria-label="功能名称" />
+      <select name="childParent" aria-label="上级功能"></select>
+      <input name="childQuantity" type="number" min="1" step="1" value="${item.quantity || 1}" aria-label="数量" />
+      <input name="childUnitArea" type="number" min="0" step="1" value="${item.unitAreaM2 || ""}" placeholder="㎡" aria-label="单项面积" />
+      <button type="button" data-modal-action="remove-child-row" aria-label="删除此行">删除</button>
+    </div>`;
+};
+
+const refreshChildParentOptions = (overlay) => {
+  const rootName = requirementModal?.parentName || "一级功能";
+  const levelTwoRows = [
+    ...overlay.querySelectorAll('.step12-area-child-row select[name="childLevel"]')
+  ]
+    .filter((select) => Number(select.value) === 2)
+    .map((select) => {
+      const row = select.closest(".step12-area-child-row");
+      return {
+        key: row.dataset.childRow,
+        name:
+          row.querySelector('input[name="childName"]')?.value.trim() ||
+          "未命名二级功能"
+      };
+    });
+  overlay.querySelectorAll(".step12-area-child-row").forEach((row) => {
+    const level = Number(row.querySelector('[name="childLevel"]')?.value) || 2;
+    const parent = row.querySelector('[name="childParent"]');
+    if (!parent) return;
+    if (level === 2) {
+      parent.innerHTML = `<option value="${escapeHtml(requirementModal.parentId)}">${escapeHtml(rootName)}</option>`;
+      parent.disabled = true;
+      return;
+    }
+    const previous = row.dataset.parentRef || parent.value;
+    parent.disabled = false;
+    parent.innerHTML = levelTwoRows.length
+      ? levelTwoRows
+          .map(
+            (item) =>
+              `<option value="${escapeHtml(item.key)}" ${item.key === previous ? "selected" : ""}>${escapeHtml(item.name)}</option>`
+          )
+          .join("")
+      : '<option value="">请先添加二级功能</option>';
+  });
+  const root = requirementModal?.sourceItems?.find(
+    (item) => item.id === requirementModal.parentId
+  );
+  const declared = Number(root?.declaredAreaM2 || root?.areaM2) || 0;
+  const levelTwoTotal = [
+    ...overlay.querySelectorAll(".step12-area-child-row")
+  ]
+    .filter(
+      (row) =>
+        Number(row.querySelector('[name="childLevel"]')?.value) === 2
+    )
+    .reduce((sum, row) => {
+      const quantity = Math.max(
+        1,
+        Number(row.querySelector('[name="childQuantity"]')?.value) || 1
+      );
+      const unitArea =
+        Number(row.querySelector('[name="childUnitArea"]')?.value) || 0;
+      return sum + quantity * unitArea;
+    }, 0);
+  const summary = overlay.querySelector(".step12-area-child-summary");
+  if (summary) {
+    const difference = levelTwoTotal - declared;
+    summary.innerHTML = `二级功能合计 <strong>${formatArea(levelTwoTotal)}㎡</strong>${
+      declared
+        ? ` · 与一级声明面积${
+            Math.abs(difference) <= 0.5
+              ? "一致"
+              : `相差 <strong>${formatArea(Math.abs(difference))}㎡</strong>`
+          }`
+        : ""
+    }`;
+  }
+};
+
+const appendAreaChildRow = (overlay, item = {}, defaultLevel = 2) => {
+  const list = overlay.querySelector(".step12-area-child-list");
+  if (!list) return;
+  list.insertAdjacentHTML("beforeend", childRowMarkup(item, defaultLevel));
+  refreshChildParentOptions(overlay);
+  list.lastElementChild?.querySelector('input[name="childName"]')?.focus();
+};
+
+const openAreaChildrenModal = (parentItem, sourceItems) => {
+  const items = calculateAreaProgramItems(sourceItems || []);
+  const descendantIds = areaDescendantIds(items, parentItem.id);
+  const descendants = items.filter((item) => descendantIds.has(item.id));
+  requirementModal = {
+    kind: "areaChildren",
+    parentId: parentItem.id,
+    parentName: parentItem.name,
+    sourceItems: items
+  };
+  document.querySelector(".step12-modal-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "step12-modal-overlay";
+  overlay.innerHTML = `
+    <div class="step12-modal is-area-structure" role="dialog" aria-modal="true" aria-labelledby="step12-modal-title">
+      <header>
+        <div><span>AREA PROGRAM</span><h3 id="step12-modal-title">完善“${escapeHtml(parentItem.name)}”的下级功能</h3></div>
+        <button type="button" data-modal-action="close">×</button>
+      </header>
+      <div class="step12-area-structure-intro">
+        <p>一次补充二级、三级功能。父级面积只作为汇总，不会与子项重复计入总面积。</p>
+        <div><strong>${formatArea(parentItem.declaredAreaM2 || parentItem.areaM2)}㎡</strong><span>一级功能声明面积</span></div>
+      </div>
+      <div class="step12-area-child-head">
+        <span>层级</span><span>功能名称</span><span>上级功能</span><span>数量</span><span>单项面积</span><span>操作</span>
+      </div>
+      <div class="step12-area-child-list"></div>
+      <div class="step12-area-child-actions">
+        <button type="button" data-modal-action="add-level-two">＋ 添加二级功能</button>
+        <button type="button" data-modal-action="add-level-three">＋ 添加三级功能</button>
+        <span>可连续填写多行；三级功能需选择所属二级功能。</span>
+      </div>
+      <div class="step12-area-child-summary" aria-live="polite"></div>
+      <footer>
+        <button type="button" data-modal-action="close">暂不细分</button>
+        <div><button type="button" class="is-primary" data-modal-action="save-area-children">保存功能结构</button></div>
+      </footer>
+    </div>`;
+  document.body.append(overlay);
+  (descendants.length ? descendants : [{}, {}, {}]).forEach((item) =>
+    appendAreaChildRow(overlay, item, Number(item.level) || 2)
+  );
+  refreshChildParentOptions(overlay);
 };
 
 const openRequirementModal = (config) => {
@@ -581,12 +757,73 @@ const saveArea = (overlay) => {
     areaM2: quantity * unitAreaM2,
     category: "required"
   };
+  const isNewLevelOne = !requirementModal.id && level === 1;
   const items = requirementModal.id
     ? model.areaItems.map((item) =>
         item.id === requirementModal.id ? nextItem : item
       )
     : [...model.areaItems, nextItem];
   setLegacyFieldValue("areaProgram", serializeAreaProgram(items));
+  closeRequirementModal();
+  queueRender();
+  if (isNewLevelOne) {
+    setTimeout(() => openAreaChildrenModal(nextItem, items), 0);
+  }
+};
+
+const saveAreaChildren = (overlay) => {
+  const baseItems = requirementModal.sourceItems || [];
+  const descendantIds = areaDescendantIds(baseItems, requirementModal.parentId);
+  const retained = baseItems.filter((item) => !descendantIds.has(item.id));
+  const rows = [...overlay.querySelectorAll(".step12-area-child-row")];
+  const rowEntries = rows
+    .map((row) => ({
+      row,
+      key: row.dataset.childRow,
+      existingId: row.dataset.existingId || "",
+      level: Number(row.querySelector('[name="childLevel"]')?.value) || 2,
+      name: row.querySelector('[name="childName"]')?.value.trim() || "",
+      parentRef: row.querySelector('[name="childParent"]')?.value || "",
+      quantity: Math.max(
+        1,
+        Number(row.querySelector('[name="childQuantity"]')?.value) || 1
+      ),
+      unitAreaM2: Math.max(
+        0,
+        Number(row.querySelector('[name="childUnitArea"]')?.value) || 0
+      )
+    }))
+    .filter((entry) => entry.name);
+  const idByRow = Object.fromEntries(
+    rowEntries.map((entry) => [
+      entry.key,
+      entry.existingId || `program-${Date.now()}-${++areaChildRowSequence}`
+    ])
+  );
+  const children = rowEntries
+    .filter(
+      (entry) =>
+        entry.level === 2 ||
+        (entry.level === 3 && idByRow[entry.parentRef])
+    )
+    .map((entry) => ({
+      id: idByRow[entry.key],
+      level: entry.level,
+      parentId:
+        entry.level === 2
+          ? requirementModal.parentId
+          : idByRow[entry.parentRef],
+      name: entry.name,
+      quantity: entry.quantity,
+      unitAreaM2: entry.unitAreaM2,
+      areaM2: entry.quantity * entry.unitAreaM2,
+      declaredAreaM2: entry.quantity * entry.unitAreaM2,
+      category: "required"
+    }));
+  setLegacyFieldValue(
+    "areaProgram",
+    serializeAreaProgram([...retained, ...children])
+  );
   closeRequirementModal();
   queueRender();
 };
@@ -640,6 +877,14 @@ const bindRequirementEvents = () => {
       openRequirementModal({ kind: "area" });
     } else if (action === "edit-area") {
       openRequirementModal({ kind: "area", id: trigger.dataset.id });
+    } else if (action === "complete-area-children") {
+      const model = currentRequirementModel(
+        store.getPackage("boundaryAnchorPackage")
+      );
+      const parent = model.areaItems.find(
+        (item) => item.id === trigger.dataset.id
+      );
+      if (parent) openAreaChildrenModal(parent, model.areaItems);
     } else if (action === "delete-area") {
       deleteArea(trigger.dataset.id);
     } else if (action === "locate-constraint") {
@@ -659,6 +904,24 @@ const bindRequirementEvents = () => {
     if (modalAction === "save-chip") saveChip(overlay);
     if (modalAction === "delete-chip") deleteChip();
     if (modalAction === "save-area") saveArea(overlay);
+    if (modalAction === "save-area-children") saveAreaChildren(overlay);
+    if (modalAction === "add-level-two") {
+      appendAreaChildRow(overlay, {}, 2);
+    }
+    if (modalAction === "add-level-three") {
+      appendAreaChildRow(overlay, {}, 3);
+    }
+    if (modalAction === "remove-child-row") {
+      const row = event.target.closest(".step12-area-child-row");
+      const removedKey = row?.dataset.childRow;
+      row?.remove();
+      overlay
+        ?.querySelectorAll(
+          `.step12-area-child-row[data-parent-ref="${CSS.escape(removedKey || "")}"]`
+        )
+        .forEach((child) => child.remove());
+      if (overlay) refreshChildParentOptions(overlay);
+    }
     if (modalAction === "save-norm") saveNormConstraint(overlay);
     if (modalAction === "delete-area") deleteArea(requirementModal.id);
     if (event.target.classList?.contains("step12-modal-overlay")) {
@@ -666,6 +929,24 @@ const bindRequirementEvents = () => {
     }
   });
   document.addEventListener("change", (event) => {
+    if (
+      event.target.matches?.(
+        '.step12-area-child-row select[name="childParent"]'
+      )
+    ) {
+      event.target.closest(".step12-area-child-row").dataset.parentRef =
+        event.target.value;
+      return;
+    }
+    if (
+      event.target.matches?.(
+        '.step12-area-child-row select[name="childLevel"]'
+      )
+    ) {
+      const overlay = event.target.closest(".step12-modal-overlay");
+      if (overlay) refreshChildParentOptions(overlay);
+      return;
+    }
     if (!event.target.matches?.('.step12-modal select[name="level"]')) return;
     const overlay = event.target.closest(".step12-modal-overlay");
     if (!overlay) return;
@@ -682,6 +963,16 @@ const bindRequirementEvents = () => {
       )
       .join("")}`;
     parent.disabled = level === 1;
+  });
+  document.addEventListener("input", (event) => {
+    if (
+      event.target.matches?.(
+        ".step12-area-child-row input"
+      )
+    ) {
+      const overlay = event.target.closest(".step12-modal-overlay");
+      if (overlay) refreshChildParentOptions(overlay);
+    }
   });
 };
 

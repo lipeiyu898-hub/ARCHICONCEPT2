@@ -19,9 +19,11 @@ const numberValue = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
-const leafFunctions = (functionTree = []) =>
+const rootFunctions = (functionTree = []) =>
   functionTree.filter(
-    (item) => !functionTree.some((child) => child.parentId === item.id)
+    (item) =>
+      !item.parentId ||
+      !functionTree.some((parent) => parent.id === item.parentId)
   );
 
 const CATEGORY_LABELS = {
@@ -47,7 +49,7 @@ const normalizeDraft = (data = {}) => {
     ? calculateAreaProgramItems(clone(data.functionTree))
     : [];
   const targetGfaM2 = numberValue(data.areaAllocation?.targetGfaM2);
-  const allocatedM2 = leafFunctions(functionTree).reduce(
+  const allocatedM2 = rootFunctions(functionTree).reduce(
     (sum, item) => sum + Math.max(0, numberValue(item.areaM2)),
     0
   );
@@ -173,8 +175,14 @@ const renderFunctionRows = (data) => {
     .map((item, index) => {
       const attributes = data.functionAttributes[item.id] || {};
       const ratio = ((numberValue(item.areaM2) / target) * 100).toFixed(1);
+      const hasChildren = data.functionTree.some(
+        (child) => child.parentId === item.id
+      );
+      const parent = data.functionTree.find(
+        (candidate) => candidate.id === item.parentId
+      );
       return `
-        <article class="step3-function-row" data-function-id="${escapeHtml(item.id)}">
+        <article class="step3-function-row is-level-${item.level}" data-function-id="${escapeHtml(item.id)}">
           <div class="step3-function-main">
             <span class="step3-row-number">${String(index + 1).padStart(2, "0")}</span>
             <select data-field="level" aria-label="功能层级">
@@ -187,7 +195,10 @@ const renderFunctionRows = (data) => {
                 String(item.level || 1)
               )}
             </select>
-            <input data-field="name" value="${escapeHtml(item.name)}" aria-label="功能名称" />
+            <div class="step3-function-name" style="--function-level:${item.level}">
+              <input data-field="name" value="${escapeHtml(item.name)}" aria-label="功能名称" />
+              ${parent ? `<small>属于 ${escapeHtml(parent.name)}</small>` : hasChildren ? "<small>一级功能组 · 面积由下级汇总</small>" : ""}
+            </div>
             <select data-field="category" aria-label="功能类型">
               ${options(
                 [
@@ -199,7 +210,7 @@ const renderFunctionRows = (data) => {
               )}
             </select>
             <div class="step3-area-input">
-              <input type="number" min="0" step="10" data-field="areaM2" value="${numberValue(item.areaM2)}" aria-label="功能面积" />
+              <input type="number" min="0" step="10" data-field="areaM2" value="${numberValue(item.areaM2)}" aria-label="功能面积" ${hasChildren ? 'readonly title="该功能面积由下级功能自动汇总"' : ""} />
               <span>㎡</span>
             </div>
             <strong>${ratio}%</strong>
@@ -300,7 +311,15 @@ const renderFunctionRows = (data) => {
 const renderBubbleGraph = (data) => {
   const nodes = data.bubbleGraph?.nodes || [];
   const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
-  const lines = (data.relationshipGraph?.edges || [])
+  const hierarchyLines = (data.bubbleGraph?.hierarchyEdges || [])
+    .map((edge) => {
+      const source = nodeMap[edge.source];
+      const target = nodeMap[edge.target];
+      if (!source || !target) return "";
+      return `<line x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" class="is-hierarchy" />`;
+    })
+    .join("");
+  const relationLines = (data.relationshipGraph?.edges || [])
     .map((edge) => {
       const source = nodeMap[edge.source];
       const target = nodeMap[edge.target];
@@ -310,14 +329,14 @@ const renderBubbleGraph = (data) => {
     .join("");
   return `
     <svg class="step3-bubble-graph" viewBox="0 0 100 100" role="img" aria-label="功能气泡关系图">
-      <g class="step3-bubble-lines">${lines}</g>
+      <g class="step3-bubble-lines">${hierarchyLines}${relationLines}</g>
       ${nodes
         .map(
           (node) => `
-          <g class="step3-bubble-node" transform="translate(${node.x} ${node.y})">
+          <g class="step3-bubble-node is-level-${node.level || 1}" transform="translate(${node.x} ${node.y})">
             <circle r="${Math.max(8, node.size / 2)}"></circle>
-            <text text-anchor="middle" y="-1">${escapeHtml(node.label.slice(0, 7))}</text>
-            <text class="step3-bubble-area" text-anchor="middle" y="5">${Math.round(
+            <text text-anchor="middle" y="-1">${escapeHtml(node.label.slice(0, node.level === 1 ? 7 : 5))}</text>
+            <text class="step3-bubble-area" text-anchor="middle" y="${node.level === 1 ? 5 : 4}">${Math.round(
               numberValue(
                 data.functionTree.find((item) => item.id === node.id)?.areaM2
               )
@@ -387,7 +406,7 @@ const renderWorkspace = () => {
       }
     });
   }
-  const allocated = leafFunctions(data.functionTree).reduce(
+  const allocated = rootFunctions(data.functionTree).reduce(
     (sum, item) => sum + numberValue(item.areaM2),
     0
   );
@@ -469,9 +488,9 @@ const renderWorkspace = () => {
             <div><input type="number" min="1" step="100" data-global-field="targetGfaM2" value="${target}" /><span>㎡</span></div>
           </label>
           <dl>
-            <div><dt>强制功能</dt><dd>${leafFunctions(data.functionTree).filter((item) => item.category === "required").reduce((sum, item) => sum + numberValue(item.areaM2), 0).toLocaleString()}㎡</dd></div>
-            <div><dt>弹性功能</dt><dd>${leafFunctions(data.functionTree).filter((item) => item.category === "flexible").reduce((sum, item) => sum + numberValue(item.areaM2), 0).toLocaleString()}㎡</dd></div>
-            <div><dt>配套功能</dt><dd>${leafFunctions(data.functionTree).filter((item) => item.category === "support").reduce((sum, item) => sum + numberValue(item.areaM2), 0).toLocaleString()}㎡</dd></div>
+            <div><dt>强制功能</dt><dd>${rootFunctions(data.functionTree).filter((item) => item.category === "required").reduce((sum, item) => sum + numberValue(item.areaM2), 0).toLocaleString()}㎡</dd></div>
+            <div><dt>弹性功能</dt><dd>${rootFunctions(data.functionTree).filter((item) => item.category === "flexible").reduce((sum, item) => sum + numberValue(item.areaM2), 0).toLocaleString()}㎡</dd></div>
+            <div><dt>配套功能</dt><dd>${rootFunctions(data.functionTree).filter((item) => item.category === "support").reduce((sum, item) => sum + numberValue(item.areaM2), 0).toLocaleString()}㎡</dd></div>
             <div class="is-total"><dt>已分配合计</dt><dd>${allocated.toLocaleString()}㎡</dd></div>
             <div class="${difference < 0 ? "is-risk" : ""}"><dt>剩余可分配</dt><dd>${difference.toLocaleString()}㎡</dd></div>
           </dl>
@@ -544,10 +563,23 @@ const newFunction = () => {
 };
 
 const removeFunction = (id) => {
-  draft.functionTree = draft.functionTree.filter((item) => item.id !== id);
-  delete draft.functionAttributes[id];
+  const removeIds = new Set([id]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    draft.functionTree.forEach((item) => {
+      if (removeIds.has(item.parentId) && !removeIds.has(item.id)) {
+        removeIds.add(item.id);
+        changed = true;
+      }
+    });
+  }
+  draft.functionTree = draft.functionTree.filter(
+    (item) => !removeIds.has(item.id)
+  );
+  removeIds.forEach((removeId) => delete draft.functionAttributes[removeId]);
   draft.relationshipGraph.edges = draft.relationshipGraph.edges.filter(
-    (edge) => edge.source !== id && edge.target !== id
+    (edge) => !removeIds.has(edge.source) && !removeIds.has(edge.target)
   );
 };
 

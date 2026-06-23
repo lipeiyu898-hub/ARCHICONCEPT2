@@ -90,7 +90,7 @@ test("reads the structured Step 1 area hierarchy without double counting parents
             name: "社区商业",
             level: 1,
             parentId: null,
-            areaM2: 500
+            areaM2: 550
           },
           {
             id: "market",
@@ -117,8 +117,13 @@ test("reads the structured Step 1 area hierarchy without double counting parents
   const data = createInitialFunctionConstructData(structuredBoundary);
   const normalized = normalizeDraft(data);
   assert.equal(data.functionTree.length, 3);
-  assert.equal(data.functionTree[0].areaM2, 500);
-  assert.equal(normalized.areaAllocation.allocatedM2, 500);
+  assert.equal(data.functionTree[0].areaM2, 550);
+  assert.equal(normalized.areaAllocation.allocatedM2, 550);
+  assert.deepEqual(
+    data.bubbleGraph.nodes.map((node) => node.level),
+    [1, 2, 2]
+  );
+  assert.equal(data.bubbleGraph.hierarchyEdges.length, 2);
 });
 
 test("reads confirmed norm conditions into function principles", () => {

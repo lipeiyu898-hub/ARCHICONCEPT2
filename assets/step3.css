@@ -167,6 +167,16 @@
   background: #fff;
 }
 
+.step3-function-row.is-level-2,
+.step3-function-row.is-level-3 {
+  margin-left: 18px;
+  border-left-color: #cfcfc9;
+}
+
+.step3-function-row.is-level-3 {
+  margin-left: 36px;
+}
+
 .step3-function-main {
   min-height: 52px;
   padding: 8px 10px;
@@ -209,6 +219,32 @@
 
 .step3-area-input {
   position: relative;
+}
+
+.step3-function-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding-left: calc((var(--function-level, 1) - 1) * 10px);
+}
+
+.step3-function-name input {
+  width: 100%;
+}
+
+.step3-function-name small {
+  overflow: hidden;
+  color: #999993;
+  font-size: 8.5px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step3-area-input input[readonly] {
+  background: #f5f5f2;
+  color: #777772;
+  cursor: not-allowed;
 }
 
 .step3-area-input input {
@@ -302,11 +338,45 @@
   opacity: 0.7;
 }
 
+.step3-bubble-lines line.is-hierarchy {
+  stroke: #b9b9b3;
+  stroke-width: 0.45;
+  stroke-dasharray: 1.2 1.2;
+  opacity: 0.85;
+}
+
 .step3-bubble-node circle {
   fill: #fff;
   stroke: #20201e;
   stroke-width: 0.8;
   filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.08));
+}
+
+.step3-bubble-node.is-level-2 circle {
+  fill: #f7f7f4;
+  stroke: #777772;
+  stroke-width: 0.55;
+}
+
+.step3-bubble-node.is-level-3 circle {
+  fill: #fff;
+  stroke: #aaa9a3;
+  stroke-width: 0.45;
+}
+
+.step3-bubble-node.is-level-2 text {
+  font-size: 2.7px;
+  font-weight: 600;
+}
+
+.step3-bubble-node.is-level-3 text {
+  font-size: 2.2px;
+  font-weight: 550;
+}
+
+.step3-bubble-node.is-level-2 .step3-bubble-area,
+.step3-bubble-node.is-level-3 .step3-bubble-area {
+  font-size: 2px;
 }
 
 .step3-bubble-node text {

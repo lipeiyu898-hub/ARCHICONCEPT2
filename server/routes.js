@@ -3,6 +3,7 @@ import { config, mask } from "./config.js";
 import { callDeepSeekJson } from "./llm.js";
 import {
   conceptFallback,
+  mergeBriefExtraction,
   parseBriefFallback,
   problemFallback,
   spatialFallback,
@@ -59,9 +60,12 @@ apiRouter.post("/parse-brief", async (req, res) => {
   try {
     const data = await callDeepSeekJson({
       system: llmSystem,
-      user: `从建筑项目任务书文本中抽取字段。必须返回以下 JSON 字段：projectName, buildingType, location, siteArea, far, buildingDensity, greenRatio, heightLimit, gfa, floors, buildableBoundaryArea, siteInfo, program, targetUsers, areaProgram, keywords(array), missingFields(array), reviewItems(array), taskJudgement。\n文件名：${req.body.fileName || ""}\n文本：${text.slice(0, 12000)}`
+      user: `从建筑项目任务书文本中抽取字段。必须返回以下 JSON 字段：projectName, buildingType, location, siteArea, far, buildingDensity, greenRatio, heightLimit, gfa, floors, buildableBoundaryArea, siteInfo, program, targetUsers, areaProgram, keywords(array), missingFields(array), reviewItems(array), taskJudgement。
+areaProgram 必须提取完整的多行功能面积分表，不能只返回总建筑面积。优先返回字符串，每行格式为“1级｜功能名称｜数量×单项面积㎡”或“2级｜子功能名称｜数量×单项面积㎡”；父级功能为 1 级，明细功能为 2 级。若任务书包含“2间、每间15㎡”，应输出“2级｜办公室｜2×15㎡”。不要省略面积表中的任何有效行。
+文件名：${req.body.fileName || ""}
+文本：${text.slice(0, 30000)}`
     });
-    res.json({ ...parseBriefFallback(text), ...data });
+    res.json(mergeBriefExtraction(parseBriefFallback(text), data));
   } catch (error) {
     sendError(res, error, null);
   }
