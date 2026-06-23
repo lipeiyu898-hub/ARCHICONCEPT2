@@ -1,4 +1,8 @@
-import { store } from "./archiconcept-data-chain.js";
+import {
+  store,
+  validateConceptStrategyData,
+  validateFunctionConstructData
+} from "./archiconcept-data-chain.js";
 
 const WORKFLOW_V2_STEPS = Object.freeze([
   {
@@ -142,22 +146,12 @@ const hasMinimumBoundaryData = (chain) => {
 
 const hasMinimumFunctionData = (chain) => {
   const data = chain?.functionConstructPackage?.data || {};
-  return Boolean(
-    data.functionTree?.length ||
-      data.areaAllocation ||
-      Object.keys(data.legacyAnswers || {}).length ||
-      Object.keys(data.legacySpatialIntent || {}).length
-  );
+  return validateFunctionConstructData(data).blockingItems.length === 0;
 };
 
 const hasMinimumConceptData = (chain) => {
   const data = chain?.conceptStrategyPackage?.data || {};
-  const problems = data.coreProblems || [];
-  const strategies = data.designStrategies || [];
-  return Boolean(
-    problems.length &&
-      (strategies.length || data.conceptName || data.conceptStatement)
-  );
+  return validateConceptStrategyData(data).blockingItems.length === 0;
 };
 
 const hasMinimumMassingData = (chain) => {
@@ -449,7 +443,9 @@ const renameLegacyPage = (step, main) => {
   );
   if (oldTitle) {
     oldTitle.parentElement?.classList.add("workflow-v2-legacy-page-heading");
-    oldTitle.textContent = config.title;
+    if (oldTitle.textContent?.trim() !== config.title) {
+      oldTitle.textContent = config.title;
+    }
   }
 };
 
@@ -483,7 +479,9 @@ const updateTimeline = (chain, step, main) => {
         element.children.length === 0 &&
         oldNames[index].test(element.textContent || "")
     );
-    if (nameNode) nameNode.textContent = config.title;
+    if (nameNode && nameNode.textContent?.trim() !== config.title) {
+      nameNode.textContent = config.title;
+    }
   });
 
   const nodes = [...timeline.querySelectorAll(".rounded-full")].filter(
@@ -492,8 +490,13 @@ const updateTimeline = (chain, step, main) => {
   nodes.slice(0, 6).forEach((node, index) => {
     const targetStep = index + 1;
     const state = deriveStepState(chain, targetStep);
-    node.closest(".group")?.setAttribute("data-step-state", state.tone);
-    node.closest(".group")?.setAttribute("data-workflow-step", targetStep);
+    const group = node.closest(".group");
+    group?.setAttribute("data-step-state", state.tone);
+    group?.setAttribute("data-workflow-step", targetStep);
+    group?.setAttribute(
+      "data-current-workflow-step",
+      targetStep === step ? "true" : "false"
+    );
   });
 };
 
@@ -608,6 +611,81 @@ const saveCurrentDraft = () => {
 };
 
 const continueFromCurrentStep = (step) => {
+  if (step === 1) {
+    const result = guardStepNavigation(store.getState(), 2, 1);
+    if (!result.allowed) {
+      showNavigationDialog(result);
+      return;
+    }
+    store.confirmPackage("boundaryAnchorPackage", {
+      source: "userInput",
+      reason: "Boundary anchor confirmed before entering site analysis",
+      invalidateDownstream: false
+    });
+    navigate(2, { skipWarning: true });
+    return;
+  }
+  if (step === 2) {
+    const site = store.getPackage("siteAnalysisPackage");
+    if (
+      site.data?.siteLocation &&
+      site.data?.redline?.geometry?.length >= 3
+    ) {
+      store.confirmPackage("siteAnalysisPackage", {
+        source: "userInput",
+        reason: "Site analysis confirmed before entering program logic",
+        invalidateDownstream: false
+      });
+    }
+    navigate(3);
+    return;
+  }
+  if (step === 3) {
+    const functionPackage = store.getPackage("functionConstructPackage");
+    const validation = validateFunctionConstructData(functionPackage.data);
+    if (validation.blockingItems.length) {
+      showNavigationDialog({
+        allowed: false,
+        severity: "blocking",
+        missingItems: validation.blockingItems,
+        message:
+          "功能建构尚未达到进入概念生成的条件，请先完成一级功能分区与核心动线判断。"
+      });
+      return;
+    }
+    store.confirmPackage("functionConstructPackage", {
+      source: "manualEdit",
+      reason: "Function construct confirmed before concept strategy",
+      confidenceLevel: "high",
+      blockingItems: [],
+      invalidateDownstream: false
+    });
+    navigate(4, { skipWarning: true });
+    return;
+  }
+  if (step === 4) {
+    const conceptPackage = store.getPackage("conceptStrategyPackage");
+    const validation = validateConceptStrategyData(conceptPackage.data);
+    if (validation.blockingItems.length) {
+      showNavigationDialog({
+        allowed: false,
+        severity: "blocking",
+        missingItems: validation.blockingItems,
+        message:
+          "概念生成尚未形成完整的问题、依据与策略绑定，请先处理阻断项。"
+      });
+      return;
+    }
+    store.confirmPackage("conceptStrategyPackage", {
+      source: "manualEdit",
+      reason: "Concept strategy confirmed before massing placement",
+      confidenceLevel: "high",
+      blockingItems: [],
+      invalidateDownstream: false
+    });
+    navigate(5, { skipWarning: true });
+    return;
+  }
   const nativeButton = findNativeNextButton(step);
   if (nativeButton) {
     nativeButton.click();

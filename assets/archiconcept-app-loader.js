@@ -1,5 +1,8 @@
 import "./archiconcept-data-chain.js";
 import "./archiconcept-workflow-v2.js";
+import "./archiconcept-step12.js";
+import "./archiconcept-step3.js";
+import "./archiconcept-step4.js";
 
 const sourceLink = document.getElementById("archiconcept-app-source");
 
@@ -2124,7 +2127,7 @@ replaceOnce(
 
 replaceOnce(
   'Bn=()=>{window.scrollTo(0,0),o("project_input")},Lt=()=>{window.scrollTo(0,0),o("problem_id")},wt=()=>{window.scrollTo(0,0),o("spatial_intent")},Ge=()=>{window.scrollTo(0,0),o("strategy_match")},an=()=>{window.scrollTo(0,0),o("prototype_gen")},Hr=()=>{window.scrollTo(0,0),o("explanation_output")}',
-  'Bn=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(1),window.scrollTo(0,0),o("project_input")},Lt=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(2),window.scrollTo(0,0),o("problem_id")},wt=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(3),window.scrollTo(0,0),o("spatial_intent")},Ge=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(4),window.scrollTo(0,0),o("strategy_match")},an=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(5),window.scrollTo(0,0),o("prototype_gen")},Hr=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(6),window.scrollTo(0,0),o("explanation_output")},workflowV2RouteEffect=k.useEffect(()=>{const Ve=ht=>{const dt=Number(ht.detail?.step)||1;({1:Bn,2:Lt,3:wt,4:Ge,5:an,6:Hr}[dt]||Bn)()};return window.addEventListener("archiconcept:workflow-v2-route",Ve),()=>window.removeEventListener("archiconcept:workflow-v2-route",Ve)},[])',
+  'Bn=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(1),window.scrollTo(0,0),o("project_input")},Lt=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(2),window.scrollTo(0,0),o("project_input")},wt=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(3),window.scrollTo(0,0),o("spatial_intent")},Ge=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(4),window.scrollTo(0,0),o("strategy_match")},an=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(5),window.scrollTo(0,0),o("prototype_gen")},Hr=()=>{window.ARCHICONCEPT_DATA_CHAIN?.store.setCurrentStep(6),window.scrollTo(0,0),o("explanation_output")},workflowV2RouteEffect=k.useEffect(()=>{const Ve=ht=>{const dt=Number(ht.detail?.step)||1;({1:Bn,2:Lt,3:wt,4:Ge,5:an,6:Hr}[dt]||Bn)()};return window.addEventListener("archiconcept:workflow-v2-route",Ve),()=>window.removeEventListener("archiconcept:workflow-v2-route",Ve)},[])',
   "project data chain current step bridge"
 );
 

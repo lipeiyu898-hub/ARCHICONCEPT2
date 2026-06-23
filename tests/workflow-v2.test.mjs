@@ -69,11 +69,35 @@ test("blocks concept generation without minimum function data", () => {
 test("blocks option validation until two massing options exist", () => {
   const chain = makeReadyBoundary(createProjectDataChain());
   chain.functionConstructPackage.data = {
-    functionTree: [{ id: "public" }]
+    functionTree: [{ id: "public", name: "公共功能", level: 1 }],
+    circulationSystem: { coreDecisionConfirmed: true }
   };
   chain.conceptStrategyPackage.data = {
-    coreProblems: [{ id: "problem-1" }],
-    designStrategies: [{ id: "strategy-1" }]
+    coreProblems: [
+      {
+        id: "problem-1",
+        title: "公共与后勤流线需要分离",
+        confirmed: true,
+        evidence: [{ source: "functionConstruct", detail: "核心动线判断" }]
+      }
+    ],
+    designStrategies: [
+      {
+        id: "strategy-1",
+        title: "双系统组织",
+        confirmed: true,
+        problemIds: ["problem-1"]
+      }
+    ],
+    strategyBindings: [
+      {
+        id: "binding-1",
+        problemId: "problem-1",
+        strategyId: "strategy-1"
+      }
+    ],
+    conceptName: "双脉协同",
+    conceptStatement: "分离公共与后勤流线并连接主要公共空间。"
   };
   chain.massingPlacementPackage.data = {
     massingOptions: [{ id: "option-a" }]

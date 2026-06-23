@@ -112,6 +112,23 @@
   color: #895a37;
 }
 
+[data-workflow-v2-timeline="true"]
+  [data-workflow-step]
+  .rounded-full {
+  border-color: #e5e5e0 !important;
+  background: #fff !important;
+  color: #aaa9a3 !important;
+  box-shadow: none !important;
+}
+
+[data-workflow-v2-timeline="true"]
+  [data-current-workflow-step="true"]
+  .rounded-full {
+  border-color: #171717 !important;
+  background: #171717 !important;
+  color: #fff !important;
+}
+
 .workflow-v2-summary {
   position: relative;
   z-index: 2;

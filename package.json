@@ -7,6 +7,9 @@
     "build": "vite build",
     "test:data-chain": "node --test tests/data-chain.test.mjs",
     "test:workflow": "node --test tests/workflow-v2.test.mjs",
+    "test:step12": "node --test tests/step12.test.mjs",
+    "test:step3": "node --test tests/step3.test.mjs",
+    "test:step4": "node --test tests/step4.test.mjs",
     "dev": "node server/index.js",
     "preview": "set NODE_ENV=production&& node server/index.js",
     "start": "set NODE_ENV=production&& node server/index.js"
