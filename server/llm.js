@@ -51,3 +51,60 @@ export async function callDeepSeekJson({ system, user, temperature = 0.25 }) {
 
   return extractJson(body?.choices?.[0]?.message?.content || "");
 }
+
+export async function callDeepSeekText({
+  system,
+  messages = [],
+  temperature = 0.35
+}) {
+  if (!config.deepseekApiKey) {
+    const err = new Error("MISSING_DEEPSEEK_API_KEY");
+    err.status = 500;
+    throw err;
+  }
+
+  const safeMessages = Array.isArray(messages)
+    ? messages
+        .filter(
+          (item) =>
+            item &&
+            ["user", "assistant"].includes(item.role) &&
+            typeof item.content === "string" &&
+            item.content.trim()
+        )
+        .slice(-10)
+        .map((item) => ({
+          role: item.role,
+          content: item.content.slice(0, 3000)
+        }))
+    : [];
+
+  const response = await fetch(`${config.deepseekBaseUrl.replace(/\/$/, "")}/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.deepseekApiKey}`
+    },
+    body: JSON.stringify({
+      model: config.deepseekModel,
+      temperature,
+      messages: [
+        {
+          role: "system",
+          content: system
+        },
+        ...safeMessages
+      ]
+    })
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(body?.error?.message || `DEEPSEEK_REQUEST_FAILED_${response.status}`);
+    err.status = response.status === 401 ? 401 : 502;
+    err.code = response.status === 401 ? "DEEPSEEK_AUTH_FAILED" : "DEEPSEEK_REQUEST_FAILED";
+    throw err;
+  }
+
+  return String(body?.choices?.[0]?.message?.content || "").trim();
+}

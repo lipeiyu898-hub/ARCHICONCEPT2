@@ -26,6 +26,14 @@ test("Step 1 blocks incomplete boundary data", () => {
   assert.equal(result.blockingItems.length, 4);
 });
 
+test("empty boundary input does not generate norm matches", () => {
+  assert.deepEqual(recommendNormConstraints("", {}), []);
+  assert.deepEqual(resolveNormDesignConstraints({}), []);
+  const review = deriveBoundaryReview({ data: {} });
+  assert.equal(review.norms.length, 0);
+  assert.equal(review.normDesignConstraints.length, 0);
+});
+
 test("Step 1 produces norms and a design constraint table", () => {
   const adapted = legacyAdapters.boundaryAnchorPackage({
     projectData: {
@@ -162,6 +170,41 @@ test("parent function keeps its declared area and validates child totals", () =>
   assert.equal(parent.childAreaM2, 500);
   assert.equal(parent.areaDifferenceM2, -499);
   assert.equal(buildAreaProgramModel({ items }).allocatedAreaM2, 999);
+});
+
+test("repairs flat imported area rows when child sums match parent areas", () => {
+  const items = calculateAreaProgramItems([
+    { id: "commercial", name: "社区商业", level: 1, areaM2: 550 },
+    { id: "market", name: "菜市场及食品店铺", level: 1, areaM2: 300 },
+    { id: "store", name: "小超市", level: 1, areaM2: 200 },
+    { id: "warehouse", name: "商品库房", level: 1, areaM2: 50 },
+    { id: "culture", name: "文化休闲活动", level: 1, areaM2: 650 },
+    { id: "book", name: "书吧", level: 1, areaM2: 100 },
+    { id: "drink", name: "休闲饮品", level: 1, areaM2: 200 },
+    { id: "training", name: "培训体验", level: 1, areaM2: 100 },
+    { id: "fitness", name: "健身", level: 1, areaM2: 150 },
+    { id: "chess", name: "棋牌室", level: 1, areaM2: 100 },
+    { id: "equipment", name: "设备用房", level: 1, areaM2: 70 },
+    { id: "fire", name: "消防控制室", level: 1, areaM2: 20 },
+    { id: "power", name: "高低压配电房", level: 1, areaM2: 50 }
+  ]);
+  const commercial = items.find((item) => item.id === "commercial");
+  const market = items.find((item) => item.id === "market");
+  const culture = items.find((item) => item.id === "culture");
+  const book = items.find((item) => item.id === "book");
+  const equipment = items.find((item) => item.id === "equipment");
+  const fire = items.find((item) => item.id === "fire");
+
+  assert.equal(commercial.level, 1);
+  assert.equal(market.level, 2);
+  assert.equal(market.parentId, commercial.id);
+  assert.equal(culture.level, 1);
+  assert.equal(book.level, 2);
+  assert.equal(book.parentId, culture.id);
+  assert.equal(equipment.level, 1);
+  assert.equal(fire.level, 2);
+  assert.equal(fire.parentId, equipment.id);
+  assert.equal(buildAreaProgramModel({ items }).allocatedAreaM2, 1270);
 });
 
 test("serializes area hierarchy in parent-child order", async () => {

@@ -6,7 +6,7 @@
 
 | Step | 中文名称 | English | 数据包 |
 | --- | --- | --- | --- |
-| 1 | 边界锚定 | Boundary Anchor | `boundaryAnchorPackage` |
+| 1 | 设计边界 | Boundary Anchor | `boundaryAnchorPackage` |
 | 2 | 场地解析 | Site Analysis | `siteAnalysisPackage` |
 | 3 | 功能建构 | Program Logic | `functionConstructPackage` |
 | 4 | 概念生成 | Concept Strategy | `conceptStrategyPackage` |
@@ -24,7 +24,7 @@
 
 ## 导航规则
 
-- 未达到边界锚定最小条件时，禁止进入后续阶段；
+- 未达到设计边界最小条件时，禁止进入后续阶段；
 - 场地数据缺失或过期时，进入功能建构及后续阶段前给出警告；
 - 功能数据不足时，禁止进入概念生成；
 - 核心问题或策略不足时，禁止进入形态落位；

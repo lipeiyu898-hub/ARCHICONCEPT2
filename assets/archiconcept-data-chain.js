@@ -97,6 +97,13 @@ const recommendNormConstraints = (buildingType = "", context = {}) => {
   ]
     .filter(Boolean)
     .join(" ");
+  const areaProgram = data.areaProgram;
+  const hasAreaProgram =
+    asArray(areaProgram?.items).length > 0 ||
+    hasValue(areaProgram?.legacyText) ||
+    (typeof areaProgram === "string" && hasValue(areaProgram));
+  const hasNormSeed = hasValue(resolvedType) || hasValue(program) || hasAreaProgram;
+  if (!hasNormSeed) return [];
   const hasPublicUse =
     /公共|市民|游客|展览|教育|商业|办公|酒店|交通|Public|Cultural|Commercial|Education|Office|Hospitality/i.test(
       `${resolvedType} ${program}`
@@ -123,7 +130,7 @@ const recommendNormConstraints = (buildingType = "", context = {}) => {
         "室内环境与耐久性要求",
         "公共空间和设备空间的基本性能"
       ],
-      downstreamImpact: "边界锚定、功能建构、概念生成",
+      downstreamImpact: "设计边界、功能建构、概念生成",
       note: "用于前期检查建筑基本性能与空间要求。"
     },
     {
@@ -234,7 +241,7 @@ const buildNormRequirementDefinitions = (norms = [], context = {}) => {
       {
         id: "basic-performance",
         label: "建筑基本性能控制方式",
-        prompt: "本项目应按何种基本性能条件建立前期空间边界？",
+        prompt: "本项目按常规民用建筑要求控制，还是按设备建筑专项要求控制？",
         options: [
           "按常规民用建筑基本性能预留",
           "按设备建筑专项性能要求深化",
@@ -251,7 +258,7 @@ const buildNormRequirementDefinitions = (norms = [], context = {}) => {
       {
         id: "fire-access",
         label: "消防扑救条件",
-        prompt: "场地总平阶段采用何种消防扑救条件？",
+        prompt: "消防车道和消防扑救面准备如何布置？",
         options: [
           "预留可贯通消防车道及扑救面",
           "结合城市道路设置消防扑救面",
@@ -267,7 +274,7 @@ const buildNormRequirementDefinitions = (norms = [], context = {}) => {
       {
         id: "fire-zoning",
         label: "防火分区与流线分隔",
-        prompt: "公众、后勤和设备空间应采用何种分区原则？",
+        prompt: "公众、后勤和设备空间是否需要独立设置防火分区？",
         options: [
           "公众、后勤与设备空间独立分区",
           "允许局部共享，但设置受控防火分隔",
@@ -284,7 +291,7 @@ const buildNormRequirementDefinitions = (norms = [], context = {}) => {
       {
         id: "accessible-route",
         label: "连续无障碍到达",
-        prompt: "场地入口至主要公共空间如何组织无障碍路线？",
+        prompt: "无障碍路线如何从场地主入口连续到达主要公共空间？",
         options: [
           "建立连续无障碍路线并接入主要公共空间",
           "设置独立无障碍到达路线",
@@ -297,7 +304,7 @@ const buildNormRequirementDefinitions = (norms = [], context = {}) => {
       {
         id: "accessible-entrance",
         label: "无障碍入口与垂直交通",
-        prompt: "无障碍入口与垂直交通采用何种前期原则？",
+        prompt: "无障碍入口是否与主要公共入口合并，并直接连接电梯或坡道？",
         options: [
           "至少预留一处无障碍主入口并接入垂直交通",
           "无障碍入口与主要公共入口合并设置",
@@ -342,7 +349,7 @@ const buildNormRequirementDefinitions = (norms = [], context = {}) => {
       {
         id: "industrial-service",
         label: "设备运维与吊装组织",
-        prompt: "设备运维、吊装与公众使用空间如何组织？",
+        prompt: "设备运输、检修和吊装是否需要独立于公众流线？",
         options: [
           "设备运维、吊装与公众流线独立组织",
           "允许分时共享，但保留独立检修通道",
@@ -355,7 +362,7 @@ const buildNormRequirementDefinitions = (norms = [], context = {}) => {
       {
         id: "industrial-isolation",
         label: "设备区环境隔离",
-        prompt: "设备空间与公共空间采用何种环境隔离原则？",
+        prompt: "设备区与公共空间之间需要采用哪些隔声、减振和安全隔离措施？",
         options: [
           "设置声学、振动与安全缓冲空间",
           "通过垂直分层和结构隔离控制影响",
@@ -474,7 +481,7 @@ const buildBoundaryValidation = (brief = {}) => {
     addBlocking(
       "functionRequirements",
       "功能需求或场地问题",
-      "无法建立功能刚需和设计任务边界。"
+      "缺少主要功能，无法建立后续功能分级和面积关系。"
     );
   }
 
@@ -599,7 +606,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "projectType",
       field: "type",
-      category: "项目身份",
+      category: "项目基本信息",
       label: "建筑类型",
       value: identity.buildingType,
       displayValue: identity.buildingType,
@@ -612,7 +619,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "location",
       field: "location",
-      category: "项目身份",
+      category: "项目基本信息",
       label: "项目地点",
       value: identity.location,
       displayValue: identity.location,
@@ -625,7 +632,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "siteArea",
       field: "area",
-      category: "规模边界",
+      category: "建设规模",
       label: "用地面积",
       value: controls.siteAreaM2,
       displayValue: hasValue(controls.siteAreaM2)
@@ -640,7 +647,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "gfa",
       field: "gfa",
-      category: "规模边界",
+      category: "建设规模",
       label: "总建筑面积",
       value: controls.grossFloorAreaM2,
       displayValue: hasValue(controls.grossFloorAreaM2)
@@ -655,7 +662,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "far",
       field: "far",
-      category: "强控指标",
+      category: "规划指标",
       label: "容积率",
       value: controls.floorAreaRatio,
       displayValue: controls.floorAreaRatio,
@@ -668,7 +675,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "density",
       field: "density",
-      category: "强控指标",
+      category: "规划指标",
       label: "建筑密度",
       value: controls.buildingDensityPercent,
       displayValue: hasValue(controls.buildingDensityPercent)
@@ -683,7 +690,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "greenery",
       field: "greenery",
-      category: "强控指标",
+      category: "规划指标",
       label: "绿化率",
       value: controls.greenRatioPercent,
       displayValue: hasValue(controls.greenRatioPercent)
@@ -698,7 +705,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "height",
       field: "height",
-      category: "强控指标",
+      category: "规划指标",
       label: "建筑限高",
       value: controls.heightLimitM,
       displayValue: hasValue(controls.heightLimitM)
@@ -713,7 +720,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "floors",
       field: "floors",
-      category: "规模边界",
+      category: "建设规模",
       label: "层数范围",
       value: controls.floorRange,
       displayValue: controls.floorRange,
@@ -726,12 +733,12 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "program",
       field: "needs",
-      category: "功能刚需",
-      label: "核心功能需求",
+      category: "功能与面积",
+      label: "主要功能",
       value: requirements.program,
       displayValue: requirements.program,
-      missingText: "未填写核心功能需求",
-      action: "添加核心功能",
+      missingText: "未填写主要功能",
+      action: "添加主要功能",
       impact: "功能建构 / 概念生成",
       section: "C",
       sourceField: "functionRequirements"
@@ -739,7 +746,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "targetUsers",
       field: "users",
-      category: "功能刚需",
+      category: "功能与面积",
       label: "主要使用人群",
       value: requirements.targetUsers,
       displayValue: requirements.targetUsers,
@@ -752,7 +759,7 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
     makeRow({
       key: "areaProgram",
       field: "areaProgram",
-      category: "功能刚需",
+      category: "功能与面积",
       label: "功能面积组成",
       value: areaItems.length ? allocatedArea : "",
       displayValue: areaItems.length
@@ -805,12 +812,12 @@ const buildDesignConstraintTable = (data = {}, packageContext = {}) => {
       label: constraint.label,
       currentValue: isPending ? "待确认" : constraint.value,
       condition: isPending ? "待确认" : constraint.value,
-      source: isEstimated ? "系统估算" : isPending ? "规范匹配" : "用户确认",
-      status: isPending ? "待补充" : isEstimated ? "系统估算" : "已确认",
+      source: isEstimated ? "采用估算" : isPending ? "规范匹配" : "用户确认",
+      status: isPending ? "待补充" : isEstimated ? "采用估算" : "已确认",
       statusCode: isPending ? "missing" : isEstimated ? "estimated" : "confirmed",
-      issue: isPending ? `${constraint.normTitle}要求明确该设计条件。` : "",
+      issue: isPending ? `请确认：${constraint.prompt}` : "",
       action: isPending
-        ? "补充条件或采用系统估算"
+        ? "补充条件或采用估算"
         : isEstimated
           ? "建议后续专业复核"
           : "无需处理",
@@ -938,10 +945,52 @@ const normalizeAreaItem = (item = {}, index = 0) => {
   };
 };
 
+const inferFlatAreaHierarchy = (items = []) => {
+  const roots = items.filter((item) => !item.parentId && Number(item.level) === 1);
+  if (roots.length < 3 || roots.length !== items.length) return items;
+  const likelyParentName = (name = "") =>
+    /商业|活动|用房|功能|服务|配套|技术|公共|管理|设备|办公|后勤/.test(name);
+  const likelyChildName = (name = "") =>
+    !/总计|合计|小计|用地面积|总建筑面积|计容面积/.test(name);
+  const tolerance = 0.5;
+  const taken = new Set();
+  for (let index = 0; index < items.length - 1; index += 1) {
+    const parent = items[index];
+    if (taken.has(parent.id) || !likelyParentName(parent.name)) continue;
+    const parentArea = Number(parent.areaM2) || 0;
+    if (parentArea <= 0) continue;
+    let sum = 0;
+    const children = [];
+    for (let childIndex = index + 1; childIndex < items.length; childIndex += 1) {
+      const child = items[childIndex];
+      if (taken.has(child.id) || !likelyChildName(child.name)) break;
+      sum += Number(child.areaM2) || 0;
+      children.push(child);
+      if (Math.abs(sum - parentArea) <= tolerance) {
+        const allowSingleChild =
+          children.length > 1 ||
+          (/管理用房|设备用房|辅助用房|后勤用房/.test(parent.name) &&
+            !/与/.test(parent.name));
+        if (!allowSingleChild) break;
+        children.forEach((item) => {
+          item.level = 2;
+          item.parentId = parent.id;
+          taken.add(item.id);
+        });
+        break;
+      }
+      if (sum > parentArea + tolerance) break;
+    }
+  }
+  return items;
+};
+
 const calculateAreaProgramItems = (items = []) => {
-  const normalized = asArray(items)
+  const normalized = inferFlatAreaHierarchy(
+    asArray(items)
     .map(normalizeAreaItem)
-    .filter((item) => item.name);
+      .filter((item) => item.name)
+  );
   const childrenByParent = normalized.reduce((map, item) => {
     if (!item.parentId) return map;
     if (!map[item.parentId]) map[item.parentId] = [];
@@ -982,17 +1031,29 @@ const calculateAreaProgramItems = (items = []) => {
   return normalized;
 };
 
+const splitAreaProgramRows = (value = "") =>
+  String(value)
+    .replace(/\r/g, "\n")
+    .replace(/([^\n])(?=(?:[（(]\s*\d+\s*[）)]|\d+[.、]))/g, "$1\n")
+    .replace(/(包括|含)\s*(?=[\u4e00-\u9fa5A-Za-zA-Z])/g, "$1\n")
+    .replace(
+      /(㎡|m²|m2|平方米|平米)([）)]?)(?=\s*[\u4e00-\u9fa5A-Za-z][^\n；;]{0,28}?\d)/gi,
+      "$1$2\n"
+    )
+    .split(/\n|；|;/)
+    .map((raw) => ({ raw, text: raw.trim() }))
+    .filter((item) => item.text);
+
 const parseAreaProgram = (value = "", targetAreaM2 = 0) => {
   if (value && typeof value === "object" && Array.isArray(value.items)) {
     return calculateAreaProgramItems(value.items);
   }
   if (!hasValue(value)) return [];
 
-  const rawRows = String(value)
-    .split(/\n|；|;/)
-    .flatMap((raw) => {
+  const rawRows = splitAreaProgramRows(value)
+    .flatMap(({ raw }) => {
       const parts = raw.split(/，其中/);
-      if (parts.length < 2) return [raw];
+      if (parts.length < 2) return [{ raw, text: raw.trim() }];
       return [
         parts[0],
         ...parts
@@ -1000,9 +1061,8 @@ const parseAreaProgram = (value = "", targetAreaM2 = 0) => {
           .join("，")
           .split(/，/)
           .map((item) => `  ${item}`)
-      ];
+      ].map((part) => ({ raw: part, text: part.trim() }));
     })
-    .map((raw) => ({ raw, text: raw.trim() }))
     .filter((item) => item.text);
   const items = [];
   let currentLevelOneId = null;
@@ -1617,7 +1677,7 @@ const createInitialConceptStrategyData = (chain = {}) => {
       evidence: [
         createEvidence(
           "boundaryAnchor",
-          "边界锚定",
+          "设计边界",
           item.message || item.impact || item.label
         )
       ]

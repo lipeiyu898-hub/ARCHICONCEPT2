@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { createProjectDataChain } from "../assets/archiconcept-data-chain.js";
 import {
+  WORKFLOW_V2_PRODUCT_NAV,
   WORKFLOW_V2_STEPS,
   deriveStepState,
   guardStepNavigation
@@ -25,7 +26,7 @@ const makeReadyBoundary = (chain) => {
 test("defines the new six-step workflow once", () => {
   assert.deepEqual(
     WORKFLOW_V2_STEPS.map((step) => step.title),
-    ["边界锚定", "场地解析", "功能建构", "概念生成", "形态落位", "比选定型"]
+    ["设计边界", "场地解析", "功能建构", "概念生成", "形态落位", "比选定型"]
   );
   assert.deepEqual(
     WORKFLOW_V2_STEPS.map((step) => step.packageName),
@@ -38,6 +39,20 @@ test("defines the new six-step workflow once", () => {
       "finalConceptPackage"
     ]
   );
+});
+
+test("defines the product shell navigation around the workflow", () => {
+  assert.deepEqual(WORKFLOW_V2_PRODUCT_NAV.top, [
+    "项目",
+    "档案",
+    "流程",
+    "实验室",
+    "工作台"
+  ]);
+  assert.equal(WORKFLOW_V2_PRODUCT_NAV.activeTop, "工作台");
+  assert.ok(WORKFLOW_V2_PRODUCT_NAV.primary.includes("概念方案"));
+  assert.equal(WORKFLOW_V2_PRODUCT_NAV.activeSide, "概念方案");
+  assert.ok(WORKFLOW_V2_PRODUCT_NAV.secondary.includes("项目设置"));
 });
 
 test("blocks later stages when boundary anchor is incomplete", () => {

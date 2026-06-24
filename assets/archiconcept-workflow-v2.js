@@ -1,4 +1,5 @@
 import {
+  buildDesignConstraintTable,
   store,
   validateConceptStrategyData,
   validateFunctionConstructData
@@ -8,12 +9,12 @@ const WORKFLOW_V2_STEPS = Object.freeze([
   {
     step: 1,
     route: "boundary-anchor",
-    title: "边界锚定",
+    title: "设计边界",
     englishTitle: "Boundary Anchor",
     shortEnglishTitle: "BOUNDARY ANCHOR",
     packageName: "boundaryAnchorPackage",
-    description: "拆解任务书与硬性约束，建立不可突破的设计基准。",
-    modules: ["项目身份", "强控指标", "功能刚需", "规范限制", "设计约束总表"]
+    description: "整理任务书、规划指标和功能要求，形成后续分析采用的条件基准。",
+    modules: ["项目基本信息", "规划指标", "功能与面积", "规范条件", "约束汇总"]
   },
   {
     step: 2,
@@ -67,6 +68,38 @@ const WORKFLOW_V2_STEPS = Object.freeze([
   }
 ]);
 
+const WORKFLOW_V2_PRODUCT_NAV = Object.freeze({
+  top: ["项目", "档案", "流程", "实验室", "工作台"],
+  primary: [
+    "项目概览",
+    "概念方案",
+    "概念生成",
+    "平面布局",
+    "立面生成",
+    "渲染表现",
+    "图纸导出"
+  ],
+  secondary: ["文件管理", "协作成员", "项目设置"],
+  activeTop: "工作台",
+  activeSide: "概念方案"
+});
+
+const WORKFLOW_V2_SIDE_ICONS = Object.freeze([
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5h14M5 12h14M5 17.5h9"/><path d="M4.5 4.5h15v15h-15z"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V7.5L12 4l7 3.5V19"/><path d="M8 19v-6h8v6"/><path d="M9.5 9.5h5"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16"/><path d="M6 8h12"/><path d="M7.5 13h9"/><path d="M9 18h6"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18l5-12 4 8 2-4 3 8"/><path d="M4 18h16"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18V6h12v12"/><path d="M9 18v-7h6v7"/><path d="M6 18h12"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17.5h14"/><path d="M7 17.5V9l5-3 5 3v8.5"/><path d="M10 17.5v-5h4v5"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h10v15H7z"/><path d="M9.5 8h5"/><path d="M9.5 12h5"/><path d="M9.5 16h3"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5h14v11H5z"/><path d="M8 9.5h8"/><path d="M8 13.5h5"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9a5 5 0 0 1 10 0"/><path d="M5.5 18.5c1.5-3 11.5-3 13 0"/><path d="M9 9a3 3 0 0 0 6 0"/></svg>',
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v3"/><path d="M12 16.5v3"/><path d="M4.5 12h3"/><path d="M16.5 12h3"/><path d="M8.2 8.2l2.1 2.1"/><path d="M13.7 13.7l2.1 2.1"/><path d="M15.8 8.2l-2.1 2.1"/><path d="M10.3 13.7l-2.1 2.1"/></svg>'
+]);
+
+const workflowV2SideIcon = (index) =>
+  WORKFLOW_V2_SIDE_ICONS[index % WORKFLOW_V2_SIDE_ICONS.length];
+
 const STATUS_META = Object.freeze({
   empty: { label: "未开始", tone: "muted" },
   partial: { label: "进行中", tone: "active" },
@@ -112,7 +145,7 @@ const deriveStepState = (chain, step) => {
   if (packageData.blockingItems?.length) {
     return {
       status: packageData.completionStatus,
-      label: "有阻断项",
+      label: "有必须补充项",
       tone: "blocking",
       stale: false,
       blockingCount: packageData.blockingItems.length,
@@ -176,8 +209,8 @@ const guardStepNavigation = (chain, targetStep, currentStep = chain?.currentStep
       severity: "blocking",
       targetStep: target,
       redirectStep: 1,
-      missingItems: boundary?.blockingItems || ["请先完成边界锚定的最小必填项"],
-      message: "边界锚定尚未达到进入后续阶段的条件。"
+      missingItems: boundary?.blockingItems || ["请先完成设计边界的最小必填项"],
+      message: "设计边界尚未达到进入后续阶段的条件。"
     };
   }
 
@@ -250,7 +283,7 @@ const getStepSummary = (chain, step) => {
     : "完成硬性校核后可锁定并导出最终方案。";
 
   if (state.blockingCount) {
-    nextMessage = `仍有 ${state.blockingCount} 个阻断项需要处理。`;
+    nextMessage = `仍有 ${state.blockingCount} 个必须处理项。`;
   } else if (state.stale) {
     nextMessage = "前序数据发生变化，本阶段结果需要重新计算或确认。";
   } else if (packageData?.completionStatus === "empty") {
@@ -273,9 +306,155 @@ const escapeHtml = (value) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 
+const asFiniteNumber = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  const normalized = String(value).replace(/,/g, "").trim();
+  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const number = Number(match[0]);
+  return Number.isFinite(number) ? number : null;
+};
+
+const formatSquareMeter = (value) => {
+  const number = asFiniteNumber(value);
+  return number === null ? "未填写" : `${number.toLocaleString("zh-CN")}㎡`;
+};
+
+const formatPlainValue = (value, suffix = "") => {
+  if (value === null || value === undefined || value === "") return "未填写";
+  return `${value}${suffix}`;
+};
+
+const hasConfirmedSiteLocation = (data = {}, chain = {}) => {
+  const identity = data.projectIdentity || {};
+  const site = chain.siteAnalysisPackage?.data || {};
+  return Boolean(
+    identity.location ||
+      site.location?.name ||
+      site.siteLocation?.name ||
+      site.selectedLocation?.name
+  );
+};
+
+const hasConfirmedRedLine = (data = {}, chain = {}) => {
+  const site = chain.siteAnalysisPackage?.data || {};
+  const candidates = [
+    data.redLine,
+    data.boundary,
+    site.redLine,
+    site.boundary,
+    site.boundaryData
+  ];
+  return candidates.some((item) => {
+    const points =
+      item?.points ||
+      item?.nodes ||
+      item?.coordinates ||
+      item?.path ||
+      item?.polygon;
+    return Array.isArray(points) && points.length >= 3;
+  });
+};
+
+const getAreaProgramCount = (data = {}) =>
+  Array.isArray(data.areaProgram?.items) ? data.areaProgram.items.length : 0;
+
+const renderBoundaryAnchorSummary = (
+  panel,
+  aside,
+  summary,
+  chain,
+  boundaryConstraints,
+  confirmedBoundaryCount
+) => {
+  const data = summary.packageData?.data || {};
+  const controls = data.hardControls || {};
+  const metrics = [
+    ["用地面积", formatSquareMeter(controls.siteAreaM2)],
+    ["总建筑面积", formatSquareMeter(controls.grossFloorAreaM2)],
+    ["容积率", formatPlainValue(controls.floorAreaRatio)],
+    ["建筑限高", formatPlainValue(controls.heightLimitM, controls.heightLimitM ? " m" : "")]
+  ];
+  const statusRows = [
+    ["场地定位", hasConfirmedSiteLocation(data, chain) ? "已确认" : "未确认"],
+    ["用地红线", hasConfirmedRedLine(data, chain) ? "已绘制" : "未绘制"],
+    [
+      "功能面积",
+      getAreaProgramCount(data)
+        ? `${getAreaProgramCount(data)} 项`
+        : "未填写"
+    ]
+  ];
+
+  aside
+    .querySelectorAll(":scope > .sticky, :scope > .assistant-bubble-merged-source")
+    .forEach((element) =>
+      element.classList.add("workflow-v2-hidden-legacy-review")
+    );
+  panel.classList.add("workflow-v2-boundary-summary");
+  panel.innerHTML = `
+    <div class="workflow-v2-summary-header">
+      <div>
+        <span>阶段状态</span>
+        <strong>${escapeHtml(summary.config.title)}</strong>
+      </div>
+      <span class="workflow-v2-status is-${summary.state.tone}">
+        ${escapeHtml(summary.state.label)}
+      </span>
+    </div>
+    <dl class="workflow-v2-summary-list">
+      <div><dt>条件确认度</dt><dd>${confirmedBoundaryCount} / ${boundaryConstraints.length}</dd></div>
+      <div><dt>必须处理</dt><dd>${summary.state.blockingCount} 项</dd></div>
+      <div><dt>采用估算</dt><dd>${summary.state.assumptionCount} 项</dd></div>
+    </dl>
+    <div class="workflow-v2-summary-section">
+      <div class="workflow-v2-summary-section-title">关键指标</div>
+      <div class="workflow-v2-summary-metrics">
+        ${metrics
+          .map(
+            ([label, value]) => `
+              <div>
+                <span>${escapeHtml(label)}</span>
+                <strong>${escapeHtml(value)}</strong>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    </div>
+    <div class="workflow-v2-summary-section">
+      <div class="workflow-v2-summary-section-title">场地与功能</div>
+      <div class="workflow-v2-summary-status-grid">
+        ${statusRows
+          .map(
+            ([label, value]) => `
+              <div>
+                <span>${escapeHtml(label)}</span>
+                <strong>${escapeHtml(value)}</strong>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    </div>
+    ${
+      summary.state.stale
+        ? `<div class="workflow-v2-stale-note">前序数据已变更，建议复核本阶段内容。</div>`
+        : ""
+    }
+    <div class="workflow-v2-summary-assistant">
+      <div>
+        <span>ARCHICONCEPT ASSISTANT</span>
+        <p>这里保留本页关键条件，后续步骤会读取这些确认结果。</p>
+      </div>
+      <img src="/images/ip-input-guide2.png" alt="" aria-hidden="true" />
+    </div>
+  `;
+};
+
 const LEGACY_WORKFLOW_LABELS = Object.freeze(
   new Map([
-    ["输入条件", "边界锚定"],
+    ["输入条件", "设计边界"],
     ["问题识别", "场地解析"],
     ["空间意图", "功能建构"],
     ["策略匹配", "概念生成"],
@@ -292,10 +471,10 @@ const LEGACY_WORKFLOW_LABELS = Object.freeze(
     ["STRATEGY MATCHING", "CONCEPT STRATEGY"],
     ["PROTOTYPE GENERATION", "MASSING PLACEMENT"],
     ["EXPLAINABLE OUTPUT", "OPTION VALIDATION"],
-    ["开始输入条件 START INPUT", "开始边界锚定 START"],
-    ["开始输入条件", "开始边界锚定"],
+    ["开始输入条件 START INPUT", "开始设计边界 START"],
+    ["开始输入条件", "开始设计边界"],
     ["START INPUT", "START"],
-    ["先从输入条件开始吧", "先从边界锚定开始"]
+    ["先从输入条件开始吧", "先从设计边界开始"]
   ])
 );
 
@@ -356,6 +535,16 @@ const ensureCreatedAside = (main) => {
 
 const renderStatusSummary = (chain, step, main) => {
   const summary = getStepSummary(chain, step);
+  const boundaryConstraints =
+    step === 1
+      ? buildDesignConstraintTable(
+          summary.packageData?.data || {},
+          summary.packageData || {}
+        )
+      : [];
+  const confirmedBoundaryCount = boundaryConstraints.filter(
+    (item) => item.statusCode === "confirmed"
+  ).length;
   const aside = getRightColumn(main) || ensureCreatedAside(main);
   if (!aside) return;
 
@@ -365,6 +554,25 @@ const renderStatusSummary = (chain, step, main) => {
     panel.className = "workflow-v2-summary";
     aside.prepend(panel);
   }
+
+  if (step === 1) {
+    renderBoundaryAnchorSummary(
+      panel,
+      aside,
+      summary,
+      chain,
+      boundaryConstraints,
+      confirmedBoundaryCount
+    );
+    return;
+  }
+
+  panel.classList.remove("workflow-v2-boundary-summary");
+  aside
+    .querySelectorAll(":scope > .workflow-v2-hidden-legacy-review")
+    .forEach((element) =>
+      element.classList.remove("workflow-v2-hidden-legacy-review")
+    );
 
   panel.innerHTML = `
     <div class="workflow-v2-summary-header">
@@ -377,9 +585,13 @@ const renderStatusSummary = (chain, step, main) => {
       </span>
     </div>
     <dl class="workflow-v2-summary-list">
-      <div><dt>数据可信度</dt><dd>${summary.confidenceLabel}</dd></div>
-      <div><dt>阻断项</dt><dd>${summary.state.blockingCount} 项</dd></div>
-      <div><dt>系统估算</dt><dd>${summary.state.assumptionCount} 项</dd></div>
+      <div><dt>${step === 1 ? "条件确认度" : "数据可信度"}</dt><dd>${
+        step === 1
+          ? `${confirmedBoundaryCount} / ${boundaryConstraints.length}`
+          : summary.confidenceLabel
+      }</dd></div>
+      <div><dt>${step === 1 ? "必须处理" : "阻断项"}</dt><dd>${summary.state.blockingCount} 项</dd></div>
+      <div><dt>采用估算</dt><dd>${summary.state.assumptionCount} 项</dd></div>
       <div><dt>数据版本</dt><dd>R${summary.packageData?.revision || 0}</dd></div>
     </dl>
     ${
@@ -404,7 +616,7 @@ const renderStageHeader = (chain, step, main) => {
     const timeline =
       main.querySelector('[data-workflow-v2-timeline="true"]') ||
       [...main.children].find((child) =>
-        /输入条件|问题识别|空间意图|边界锚定|场地解析|功能建构/.test(
+        /输入条件|问题识别|空间意图|设计边界|场地解析|功能建构/.test(
           child.textContent || ""
         )
       );
@@ -454,7 +666,7 @@ const updateTimeline = (chain, step, main) => {
     const text = element.textContent || "";
     return (
       element.children.length >= 6 &&
-      /输入条件|边界锚定/.test(text) &&
+      /输入条件|设计边界/.test(text) &&
       /问题识别|场地解析/.test(text) &&
       /解释输出|比选定型/.test(text)
     );
@@ -466,7 +678,7 @@ const updateTimeline = (chain, step, main) => {
   timeline.dataset.workflowV2Timeline = "true";
 
   const oldNames = [
-    /输入条件|边界锚定/,
+    /输入条件|设计边界/,
     /问题识别|场地解析/,
     /空间意图|功能建构/,
     /策略匹配|概念生成/,
@@ -761,10 +973,135 @@ const bindTimelineNavigation = (main) => {
   });
 };
 
+const getLegacyTopNav = () =>
+  [...document.querySelectorAll("nav")].find((nav) => {
+    const text = nav.textContent || "";
+    return (
+      !nav.classList.contains("workflow-v2-topnav") &&
+      /ARCHICONCEPT/.test(text) &&
+      /工作台|BACK|返回上一步/.test(text)
+    );
+  });
+
+let workflowV2SidebarExpanded = false;
+
+const renderProductShell = (step) => {
+  document.body.classList.add("workflow-v2-shell-active");
+  document.body.classList.toggle(
+    "workflow-v2-sidebar-expanded",
+    workflowV2SidebarExpanded
+  );
+  getLegacyTopNav()?.classList.add("workflow-v2-legacy-topnav");
+
+  let topNav = document.querySelector(".workflow-v2-topnav");
+  if (!topNav) {
+    topNav = document.createElement("nav");
+    topNav.className = "workflow-v2-topnav";
+    topNav.setAttribute("aria-label", "ARCHICONCEPT 顶部导航");
+    document.body.appendChild(topNav);
+  }
+  topNav.innerHTML = `
+    <div class="workflow-v2-brand">
+      <strong>ARCHICONCEPT</strong>
+    </div>
+    <span class="workflow-v2-topnav-divider" aria-hidden="true"></span>
+    <div class="workflow-v2-topnav-center" aria-label="产品模块">
+      ${WORKFLOW_V2_PRODUCT_NAV.top
+        .map(
+          (item) => `
+            <button type="button" ${
+              item === WORKFLOW_V2_PRODUCT_NAV.activeTop ? 'aria-current="page"' : ""
+            }>${escapeHtml(item)}${item === "工作台" ? '<span aria-hidden="true">⌄</span>' : ""}</button>
+          `
+        )
+        .join("")}
+    </div>
+    <div class="workflow-v2-topnav-actions" aria-label="账户操作">
+      <button type="button" class="workflow-v2-login">登录</button>
+      <button type="button" class="workflow-v2-register">注册</button>
+    </div>
+  `;
+
+  let sidebar = document.querySelector(".workflow-v2-sidebar");
+  if (!sidebar) {
+    sidebar = document.createElement("aside");
+    sidebar.className = "workflow-v2-sidebar";
+    sidebar.setAttribute("aria-label", "ARCHICONCEPT 侧边导航");
+    document.body.appendChild(sidebar);
+  }
+  sidebar.classList.toggle("is-expanded", workflowV2SidebarExpanded);
+  sidebar.innerHTML = `
+    <button type="button" class="workflow-v2-new-project">
+      <span class="workflow-v2-new-project-icon" aria-hidden="true"></span>
+      <span class="workflow-v2-nav-text">新建项目</span>
+    </button>
+    <div class="workflow-v2-side-section" aria-label="项目导航">
+      ${WORKFLOW_V2_PRODUCT_NAV.primary
+        .map(
+          (item, index) => `
+            <button type="button" ${
+              item === WORKFLOW_V2_PRODUCT_NAV.activeSide ? 'aria-current="page"' : ""
+            }>
+              <span class="workflow-v2-side-icon" aria-hidden="true">${workflowV2SideIcon(
+                index
+              )}</span>
+              <span>${escapeHtml(item)}</span>
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+    <div class="workflow-v2-side-section workflow-v2-side-secondary" aria-label="项目设置">
+      ${WORKFLOW_V2_PRODUCT_NAV.secondary
+        .map(
+          (item, index) => `
+            <button type="button">
+              <span class="workflow-v2-side-icon" aria-hidden="true">${workflowV2SideIcon(
+                WORKFLOW_V2_PRODUCT_NAV.primary.length + index
+              )}</span>
+              <span>${escapeHtml(item)}</span>
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+    <div class="workflow-v2-side-footer">
+      <span>当前模块</span>
+      <strong>概念方案</strong>
+      <small>STEP ${step} / 6</small>
+      <button type="button" class="workflow-v2-sidebar-toggle" aria-expanded="${
+        workflowV2SidebarExpanded ? "true" : "false"
+      }">
+        <span aria-hidden="true">${workflowV2SidebarExpanded ? "‹" : "›"}</span>
+        <span class="workflow-v2-nav-text">${
+          workflowV2SidebarExpanded ? "收起" : "展开"
+        }</span>
+      </button>
+    </div>
+  `;
+  sidebar
+    .querySelector(".workflow-v2-sidebar-toggle")
+    ?.addEventListener("click", () => {
+      workflowV2SidebarExpanded = !workflowV2SidebarExpanded;
+      renderProductShell(step);
+    });
+};
+
+const cleanupProductShell = () => {
+  document.body.classList.remove("workflow-v2-shell-active");
+  document.body.classList.remove("workflow-v2-sidebar-expanded");
+  document.querySelector(".workflow-v2-topnav")?.remove();
+  document.querySelector(".workflow-v2-sidebar")?.remove();
+  document
+    .querySelector(".workflow-v2-legacy-topnav")
+    ?.classList.remove("workflow-v2-legacy-topnav");
+};
+
 const renderWorkflowShell = () => {
   renameGlobalWorkflowLabels();
   if (!isWorkflowPage()) {
     document.querySelector(".workflow-v2-actionbar")?.remove();
+    cleanupProductShell();
     return;
   }
   const chain = store.getState();
@@ -774,6 +1111,7 @@ const renderWorkflowShell = () => {
   main.classList.add("workflow-v2-main");
   main.dataset.workflowV2Step = String(step);
 
+  renderProductShell(step);
   updateTimeline(chain, step, main);
   renderStageHeader(chain, step, main);
   renameLegacyPage(step, main);
@@ -797,7 +1135,7 @@ const queueRender = () => {
 if (typeof document !== "undefined" && typeof MutationObserver !== "undefined") {
   const observer = new MutationObserver((mutations) => {
     const generatedSelectors =
-      ".workflow-v2-stage-header, .workflow-v2-summary, .workflow-v2-actionbar, .workflow-v2-dialog-overlay, .workflow-v2-toast";
+      ".workflow-v2-stage-header, .workflow-v2-summary, .workflow-v2-actionbar, .workflow-v2-dialog-overlay, .workflow-v2-toast, .workflow-v2-topnav, .workflow-v2-sidebar";
     const onlyGeneratedMutations = mutations.every((mutation) => {
       const target =
         mutation.target?.nodeType === 1
@@ -828,6 +1166,7 @@ const workflowV2 = Object.freeze({
 globalThis.ARCHICONCEPT_WORKFLOW_V2 = workflowV2;
 
 export {
+  WORKFLOW_V2_PRODUCT_NAV,
   WORKFLOW_V2_STEPS,
   deriveStepState,
   getPackageForStep,

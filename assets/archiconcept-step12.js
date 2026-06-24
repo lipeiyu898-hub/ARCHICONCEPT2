@@ -162,7 +162,7 @@ const openNormConstraintModal = (constraintId) => {
           <textarea name="normCustomValue" placeholder="如果任务书或顾问已有明确要求，可在此填写。">${constraint.value && !constraint.options.includes(constraint.value) ? escapeHtml(constraint.value) : ""}</textarea>
         </label>
       </div>
-      <p class="step12-modal-helper">该条件将写入设计约束基准，并参与后续场地、功能和概念判断。专业审查结论可在后续覆盖。</p>
+      <p class="step12-modal-helper">保存后会写入设计约束基准。后续如果专业顾问给出正式意见，可以再覆盖。</p>
       <footer><span></span><div><button type="button" data-modal-action="close">取消</button><button type="button" class="is-primary" data-modal-action="save-norm">确认条件</button></div></footer>
     </div>
   `;
@@ -280,8 +280,7 @@ const exportConstraintTable = () => {
     "当前值",
     "来源",
     "状态",
-    "处理方式",
-    "影响后续"
+    "处理方式"
   ];
   const csvCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
   const rows = review.constraints.map((item) =>
@@ -291,8 +290,7 @@ const exportConstraintTable = () => {
       item.currentValue,
       item.source,
       item.status,
-      item.action,
-      item.impact
+      item.action
     ]
       .map(csvCell)
       .join(",")
@@ -394,8 +392,8 @@ const renderAreaRows = (items) =>
         .join("")
     : `
       <div class="step12-area-empty">
-        <strong>尚未填写功能面积分表</strong>
-        <span>可逐项新增，或由任务书识别后自动形成分级数据。</span>
+        <strong>尚未建立功能面积分表</strong>
+        <span>新增一级功能后，可以一次补充其二级和三级功能。导入任务书时，系统会先识别功能层级供你确认。</span>
       </div>`;
 
 const renderRequirementEditor = (packageData) => {
@@ -433,13 +431,13 @@ const renderRequirementEditor = (packageData) => {
         <textarea data-requirement-field="siteCondition" placeholder="例如：滨海公共空间节点，需处理海岸、城市界面、步道、人流、视线与韧性问题。">${escapeHtml(model.siteCondition)}</textarea>
       </label>
       <section class="step12-chip-panel">
-        <header><span>核心功能需求 <em>/ PROGRAM</em></span></header>
+        <header><span>主要功能 <em>/ PROGRAM</em></span></header>
         <div class="step12-chip-list">${renderChips(
           model.programItems,
           "program",
-          "尚未添加核心功能"
+          "尚未添加主要功能"
         )}</div>
-        <button type="button" class="step12-add-inline" data-action="add-chip" data-type="program">＋ 添加功能</button>
+        <button type="button" class="step12-add-inline" data-action="add-chip" data-type="program">＋ 添加主要功能</button>
       </section>
       <section class="step12-chip-panel">
         <header><span>主要使用人群 <em>/ TARGET USERS</em></span></header>
@@ -455,9 +453,9 @@ const renderRequirementEditor = (packageData) => {
       <header>
         <div>
           <span>功能面积组成 <em>/ AREA PROGRAM</em></span>
-          <p>按任务书功能分表建立一级、二级和三级功能，父级面积自动汇总子项。</p>
+          <p>按任务书录入一级、二级和三级功能。父级保留任务书声明面积，子项用于核对组成关系，统计时不会重复计入。</p>
         </div>
-        <button type="button" data-action="add-area">＋ 添加功能面积</button>
+        <button type="button" data-action="add-area">＋ 新增一级功能</button>
       </header>
       <div class="step12-area-table" role="table" aria-label="功能面积组成">
         <div class="step12-area-row is-head" role="row">
@@ -690,7 +688,7 @@ const openRequirementModal = (config) => {
         </div>`
       : `
         <div class="step12-modal is-compact" role="dialog" aria-modal="true" aria-labelledby="step12-modal-title">
-          <header><div><span>${config.type === "program" ? "PROGRAM" : "TARGET USERS"}</span><h3 id="step12-modal-title">${config.index === undefined ? "添加" : "编辑"}${config.type === "program" ? "核心功能" : "使用人群"}</h3></div><button type="button" data-modal-action="close">×</button></header>
+          <header><div><span>${config.type === "program" ? "PROGRAM" : "TARGET USERS"}</span><h3 id="step12-modal-title">${config.index === undefined ? "添加" : "编辑"}${config.type === "program" ? "主要功能" : "使用人群"}</h3></div><button type="button" data-modal-action="close">×</button></header>
           <div class="step12-modal-form"><label class="is-wide"><span>名称</span><input name="chipValue" value="${escapeHtml(chipValue)}" placeholder="${config.type === "program" ? "例如：展览展示" : "例如：市民游客"}" autofocus /></label></div>
           <footer>${config.index !== undefined ? '<button type="button" class="is-danger" data-modal-action="delete-chip">删除</button>' : "<span></span>"}<div><button type="button" data-modal-action="close">取消</button><button type="button" class="is-primary" data-modal-action="save-chip">保存</button></div></footer>
         </div>`;
@@ -984,20 +982,20 @@ const renderBoundarySections = () => {
   setSectionHeading(
     document.querySelector("#id-section-a"),
     "A",
-    "项目身份与基础条件",
-    "确认项目名称、建筑类型、所在地区与基础规模。"
+    "项目基本信息",
+    "填写项目名称、建筑类型、项目地点和用地面积。"
   );
   setSectionHeading(
     document.querySelector("#id-section-b"),
     "B",
-    "强控指标与规模边界",
-    "录入容积率、密度、限高、总建筑面积和可建设范围。"
+    "规划指标与建设规模",
+    "填写容积率、建筑密度、绿化率、建筑限高、总建筑面积和层数要求。"
   );
   setSectionHeading(
     document.querySelector("#id-section-c"),
     "C",
-    "功能需求与特殊要求",
-    "明确核心功能、使用人群、面积组成和必须回应的项目条件。"
+    "功能需求与面积组成",
+    "填写项目的主要功能、使用人群、场地特殊条件和功能面积分表。"
   );
   renderRequirementEditor(packageData);
   bindRequirementEvents();
@@ -1028,20 +1026,96 @@ const renderBoundarySections = () => {
         groups[item.normId].push(item);
         return groups;
       }, {});
+  const normById = new Map(review.norms.map((item) => [item.id, item]));
+  const normWorkItems = review.normDesignConstraints
+    .map((condition) => ({
+      ...condition,
+      norm: normById.get(condition.normId)
+    }))
+    .sort((a, b) => {
+      const rank = { pending: 0, systemEstimated: 1, userConfirmed: 2 };
+      return (rank[a.status] ?? 3) - (rank[b.status] ?? 3);
+    });
+  const pendingNormCount = normWorkItems.filter(
+    (item) => item.status === "pending"
+  ).length;
+  const estimatedNormCount = normWorkItems.filter(
+    (item) => item.status === "systemEstimated"
+  ).length;
+  const confirmedNormCount = normWorkItems.filter(
+    (item) => item.status === "userConfirmed"
+  ).length;
   section.innerHTML = `
     <header class="step12-section-header step12-norm-header">
       <span class="step12-section-index">D</span>
       <div>
-        <h2>规范关注项</h2>
-        <p>根据项目类型、功能与使用人群匹配前期需要关注的规范风险，用于提示设计边界，不替代专业审查。</p>
+        <h2>前期规范核对</h2>
+        <p>根据项目类型、功能和场地条件，先列出需要提前核对的规范方向。这里不是正式审查结论，用于帮助你发现会影响方案边界的条件。</p>
       </div>
-      <span class="step12-norm-count">${review.norms.length} 项已匹配</span>
+      <span class="step12-norm-count">${review.norms.length ? `${review.norms.length} 项规范已关联` : "待生成"}</span>
     </header>
-    <div class="step12-norm-summary">
-      <strong>系统已完成前置匹配</strong>
-      <span>展开规范项可查看触发原因、核验内容及对后续设计的影响。</span>
+    ${review.norms.length
+      ? `    <div class="step12-norm-summary">
+      <div><span>已关联规范</span><strong>${review.norms.length}</strong></div>
+      <div><span>待确认条件</span><strong>${pendingNormCount}</strong></div>
+      <div><span>采用估算</span><strong>${estimatedNormCount}</strong></div>
+      <div><span>已确认</span><strong>${confirmedNormCount}</strong></div>
+      <p>优先处理待确认条件。规范名称和编号保留在下方，作为匹配依据查看。</p>
     </div>
-    <div class="step12-norm-list" aria-label="规范关注项">
+    <section class="step12-norm-workbench" aria-label="待确认规范条件">
+      <header>
+        <div>
+          <h3>待确认条件</h3>
+          <p>这些条件会写入设计约束基准。你可以补充明确要求，也可以先采用系统估算，后续再复核。</p>
+        </div>
+        <span>${pendingNormCount} 项待处理</span>
+      </header>
+      <div class="step12-norm-condition-list">
+        ${
+          normWorkItems.length
+            ? normWorkItems
+                .map(
+                  (condition) => `
+                    <article class="step12-norm-condition is-${condition.status}" data-norm-constraint-id="${escapeHtml(condition.id)}">
+                      <div>
+                        <div class="step12-norm-condition-meta">
+                          <span>${escapeHtml(condition.norm?.title || condition.normTitle || "相关规范")}</span>
+                          <em>${escapeHtml(condition.norm?.code || condition.normCode || "按项目核验")}</em>
+                        </div>
+                        <strong>${escapeHtml(condition.label)}</strong>
+                        <p>${escapeHtml(condition.value || condition.prompt)}</p>
+                        <small>${
+                          condition.status === "userConfirmed"
+                            ? "已确认"
+                            : condition.status === "systemEstimated"
+                              ? "已采用估算，建议后续复核"
+                              : "待确认"
+                        }</small>
+                      </div>
+                      <div class="step12-norm-condition-actions">
+                        <button type="button" data-action="edit-norm-constraint" data-constraint-id="${escapeHtml(condition.id)}">${condition.status === "pending" ? "补充条件" : "修改"}</button>
+                        ${
+                          condition.status === "pending"
+                            ? `<button type="button" data-action="estimate-norm-constraint" data-constraint-id="${escapeHtml(condition.id)}">采用估算</button>`
+                            : ""
+                        }
+                      </div>
+                    </article>`
+                )
+                .join("")
+            : `<div class="step12-norm-empty">当前没有需要补充的规范条件。</div>`
+        }
+      </div>
+    </section>
+    <details class="step12-norm-evidence">
+      <summary>
+        <span>
+          <strong>查看规范匹配依据</strong>
+          <small>展开后查看系统为什么关联这些规范。</small>
+        </span>
+        <em>${review.norms.length} 项</em>
+      </summary>
+      <div class="step12-norm-list" aria-label="规范匹配依据">
       ${review.norms
         .map((item) => {
           const normConditions = normConstraintGroups[item.id] || [];
@@ -1057,82 +1131,66 @@ const renderBoundarySections = () => {
                 </div>
                 <span class="step12-norm-priority">${escapeHtml(item.priority || "基础规范")}</span>
                 <div class="step12-norm-state">
-                  <span>${escapeHtml(item.matchStatus || "系统匹配")}</span>
-                  <em>${resolvedCount} / ${normConditions.length} 条件已处理</em>
+                  <span>已关联</span>
+                  <em>${resolvedCount} / ${normConditions.length} 已确认</em>
                 </div>
               </summary>
               <div class="step12-norm-detail">
                 <div>
-                  <span>触发原因</span>
+                  <span>为什么关联</span>
                   <p>${escapeHtml(item.triggerReason || item.note || "根据当前项目条件匹配。")}</p>
                 </div>
                 <div>
-                  <span>待确认设计条件</span>
-                  <div class="step12-norm-condition-list">
-                    ${normConditions
-                      .map(
-                        (condition) => `
-                        <article class="step12-norm-condition is-${condition.status}" data-norm-constraint-id="${escapeHtml(condition.id)}">
-                          <div>
-                            <strong>${escapeHtml(condition.label)}</strong>
-                            <p>${escapeHtml(condition.value || condition.prompt)}</p>
-                            <em>${
-                              condition.status === "userConfirmed"
-                                ? "用户已确认"
-                                : condition.status === "systemEstimated"
-                                  ? "系统估算，待复核"
-                                  : "待处理"
-                            }</em>
-                          </div>
-                          <div class="step12-norm-condition-actions">
-                            <button type="button" data-action="edit-norm-constraint" data-constraint-id="${escapeHtml(condition.id)}">${condition.status === "pending" ? "补充条件" : "修改"}</button>
-                            ${
-                              condition.status === "pending"
-                                ? `<button type="button" data-action="estimate-norm-constraint" data-constraint-id="${escapeHtml(condition.id)}">采用系统估算</button>`
-                                : ""
-                            }
-                          </div>
-                        </article>`
-                      )
+                  <span>核对方向</span>
+                  <ul>
+                    ${(item.verificationItems || [])
+                      .map((text) => `<li>${escapeHtml(text)}</li>`)
                       .join("")}
-                  </div>
-                </div>
-                <div>
-                  <span>影响后续</span>
-                  <p>${escapeHtml(item.downstreamImpact || "功能建构、概念生成")}</p>
+                  </ul>
                 </div>
               </div>
             </details>
           `;
         })
         .join("")}
+      </div>
+    </details>
+`
+      : `    <div class="step12-norm-empty-state">
+      <strong>尚未生成规范核对项</strong>
+      <p>请先填写建筑类型、主要功能，或导入任务书。系统会根据项目条件列出需要提前核对的规范方向。</p>
     </div>
-    <p class="step12-norm-disclaimer">规范版本、地方条文及主管部门要求仍需由项目团队或专业顾问复核。</p>
+`}
+    <p class="step12-norm-disclaimer">规范版本、地方条文和主管部门要求仍需由项目团队或专业顾问复核。</p>
     <div class="step12-divider"></div>
     <header class="step12-section-header step12-constraint-header">
       <span class="step12-section-index">E</span>
       <div>
-        <h2>边界锚定输出：设计约束基准</h2>
-        <p>优先处理缺失、待核验和冲突项；已确认条件将作为场地解析、功能建构与概念生成的统一设计边界。</p>
+        <h2>设计约束基准</h2>
+        <p>这里汇总已确认、采用估算、待补充和存在冲突的条件。后续步骤将直接读取已确认条件和用户接受的估算值。</p>
       </div>
       <button type="button" class="step12-export-button" data-action="export-constraints">导出表格</button>
     </header>
     <div class="step12-constraint-summary" aria-label="约束检查摘要">
       <div><span>已确认</span><strong>${review.confirmedConstraints.length}</strong></div>
-      <div><span>系统估算</span><strong>${review.estimatedConstraints.length}</strong></div>
+      <div><span>采用估算</span><strong>${review.estimatedConstraints.length}</strong></div>
       <div><span>待补充</span><strong>${review.pendingConstraints.filter((item) => item.statusCode === "missing").length}</strong></div>
       <div class="${review.conflictConstraints.length ? "is-risk" : ""}"><span>冲突</span><strong>${review.conflictConstraints.length}</strong></div>
       <p>${
         review.pendingConstraints.length
-          ? `还有 ${review.pendingConstraints.length} 项需要处理，完成后可提高后续推演可靠性。`
-          : "当前边界条件已完整，可作为后续推演基准。"
+          ? `还有 ${review.pendingConstraints.length} 项未处理${
+              review.conflictConstraints.length
+                ? `，其中 ${review.conflictConstraints.length} 项存在冲突`
+                : ""
+            }。请先处理冲突和必须补充项。`
+          : "当前条件已处理完毕，可以进入下一步。"
       }</p>
     </div>
     <section class="step12-action-center">
       <header>
         <div>
-          <h3>当前需要处理</h3>
-          <p>点击对应项可直接返回输入位置。</p>
+          <h3>待处理条件</h3>
+          <p>点击“填写”或“核对”，可以返回对应的输入位置。</p>
         </div>
         <span>${review.pendingConstraints.length}</span>
       </header>
@@ -1153,7 +1211,7 @@ const renderBoundarySections = () => {
                       <small>影响：${escapeHtml(item.impact)}</small>
                     </div>
                     <button type="button" data-action="locate-constraint" data-field="${escapeHtml(item.targetField)}">
-                      ${item.statusCode === "conflict" ? "去核对" : "去补充"}
+                      ${item.statusCode === "conflict" ? "核对" : "填写"}
                     </button>
                   </article>`
                 )
@@ -1161,19 +1219,19 @@ const renderBoundarySections = () => {
             : `
               <div class="step12-action-empty">
                 <strong>当前没有待处理项</strong>
-                <span>已确认条件将直接传递到后续设计步骤。</span>
+                <span>后续步骤将读取已确认条件和采用的估算值。</span>
               </div>`
         }
       </div>
     </section>
     <details class="step12-constraint-details">
       <summary>
-        <span><strong>查看全部约束</strong><em>${review.constraints.length} 项</em></span>
-        <small>展开完整的来源、状态、处理方式与后续影响</small>
+        <span><strong>查看全部条件</strong><em>${review.constraints.length} 项</em></span>
+        <small>查看每项条件的来源、当前状态和处理方式。</small>
       </summary>
       <div class="step12-constraint-table" role="table" aria-label="设计约束总表">
         <div class="step12-constraint-row is-head" role="row">
-          <span>类别</span><span>约束项</span><span>当前值</span><span>来源</span><span>状态</span><span>处理方式</span><span>影响后续</span>
+          <span>类别</span><span>条件项</span><span>当前值</span><span>来源</span><span>状态</span><span>处理方式</span>
         </div>
         ${review.constraints
           .map(
@@ -1185,7 +1243,6 @@ const renderBoundarySections = () => {
               <span>${escapeHtml(item.source)}</span>
               <em class="${statusClass(item.status)}">${escapeHtml(item.status)}</em>
               <span>${escapeHtml(item.action)}</span>
-              <span>${escapeHtml(item.impact)}</span>
             </div>`
           )
           .join("")}

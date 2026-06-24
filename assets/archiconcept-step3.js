@@ -524,7 +524,7 @@ const renderWorkspace = () => {
             ? `
               <section class="step3-panel step3-norm-constraints">
                 <header class="step3-panel-header"><div><span>F</span><h2>规范约束输入</h2></div><strong class="step3-count">${data.normDerivedConstraints.length}</strong></header>
-                <p class="step3-panel-description">以下条件来自边界锚定，已参与功能分区、邻接和动线组织判断。</p>
+                <p class="step3-panel-description">以下条件来自设计边界，已参与功能分区、邻接和动线组织判断。</p>
                 <ul>
                   ${data.normDerivedConstraints
                     .map(

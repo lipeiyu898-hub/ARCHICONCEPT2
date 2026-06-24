@@ -93,6 +93,29 @@ test("prefers the task brief hierarchy over a flat AI area list", () => {
   assert.equal(merged.areaProgram, fallback.areaProgram);
 });
 
+test("keeps parent-child hierarchy when area entries are collapsed into one line", () => {
+  const oneLine =
+    "2.面积组成分配如下：（1）社区商业：550㎡，包括 菜市场及食品店铺：300㎡ 小超市：200㎡ 商品库房50㎡（给超市用）（2）文化休闲活动：650㎡，包括 书吧：100㎡ 休闲饮品：200㎡（包括咖啡、果茶、轻餐） 培训体验：100㎡ 健身：150㎡ 棋牌室：100㎡（3）管理用房30㎡，包括 办公室2间，每间15㎡（4）设备用房70㎡，包括 消防控制室20㎡ 高低压配电房50㎡";
+  const extracted = extractAreaProgram(oneLine);
+  const editorRows = parseAreaProgram(extracted, 2200);
+  const commercial = editorRows.find((item) => item.name === "社区商业");
+  const market = editorRows.find((item) => item.name === "菜市场及食品店铺");
+  const leisure = editorRows.find((item) => item.name === "文化休闲活动");
+  const bookBar = editorRows.find((item) => item.name === "书吧");
+  const equipment = editorRows.find((item) => item.name === "设备用房");
+  const fireControl = editorRows.find((item) => item.name === "消防控制室");
+
+  assert.equal(commercial?.level, 1);
+  assert.equal(market?.level, 2);
+  assert.equal(market?.parentId, commercial?.id);
+  assert.equal(leisure?.level, 1);
+  assert.equal(bookBar?.level, 2);
+  assert.equal(bookBar?.parentId, leisure?.id);
+  assert.equal(equipment?.level, 1);
+  assert.equal(fireControl?.level, 2);
+  assert.equal(fireControl?.parentId, equipment?.id);
+});
+
 test("normalizes structured AI area rows into the editor import format", () => {
   assert.equal(
     normalizeAreaProgramValue({

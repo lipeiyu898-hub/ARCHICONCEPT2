@@ -1,6 +1,6 @@
 import express from "express";
 import { config, mask } from "./config.js";
-import { callDeepSeekJson } from "./llm.js";
+import { callDeepSeekJson, callDeepSeekText } from "./llm.js";
 import {
   conceptFallback,
   mergeBriefExtraction,
@@ -13,12 +13,62 @@ import { amapAnalyzeContext, amapGeocode, amapSuggest } from "./amap.js";
 
 export const apiRouter = express.Router();
 
+const assistantSystem = `你是 ARCHICONCEPT 的建筑前期设计助手，名字是 ArChi。
+你可以解释当前页面、字段含义、建筑前期流程、场地分析、功能组织和概念策略。
+你可以回答建筑知识问题，但不要替代专业审查。
+涉及规范、消防、结构、机电和报批时，只能作为前期提示，并提醒用户交由专业人员复核。
+你不能声称已经替用户修改数据，也不能要求用户提供 API Key、Token 或环境变量。
+如果项目信息不足，直接说明缺少哪些条件。
+回答要简洁、具体、可执行。默认使用中文。`;
+
 const llmSystem = "你是 ARCHICONCEPT 的建筑前期策划与概念方案推演 API。你擅长将任务书、场地条件、问题识别、空间意图和策略包转成严格结构化 JSON。";
 
 function sendError(res, error, fallback) {
   if (fallback) return res.json(fallback);
   const code = error.code || error.message || "API_ERROR";
   res.status(error.status || 500).json({ error: code, message: error.message || "请求失败" });
+}
+
+function textValue(value, max = 120) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function compactAssistantContext(context = {}) {
+  const project = context.projectSnapshot || {};
+  return {
+    url: textValue(context.url, 160),
+    pageTitle: textValue(context.pageTitle, 80),
+    workflowStep: Number(context.workflowStep) || null,
+    visibleHeadings: Array.isArray(context.visibleHeadings)
+      ? context.visibleHeadings.map((item) => textValue(item, 80)).filter(Boolean).slice(0, 8)
+      : [],
+    projectSnapshot: {
+      projectName: textValue(project.projectName, 120),
+      buildingType: textValue(project.buildingType, 120),
+      location: textValue(project.location, 120),
+      siteArea: textValue(project.siteArea, 80),
+      gfa: textValue(project.gfa, 80),
+      currentStepStatus: textValue(project.currentStepStatus, 120)
+    }
+  };
+}
+
+function normalizeAssistantHistory(history = []) {
+  return Array.isArray(history)
+    ? history
+        .filter(
+          (item) =>
+            item &&
+            ["user", "assistant"].includes(item.role) &&
+            typeof item.content === "string" &&
+            item.content.trim()
+        )
+        .slice(-8)
+        .map((item) => ({
+          role: item.role,
+          content: item.content.trim().slice(0, 1800)
+        }))
+    : [];
 }
 
 apiRouter.get("/env-check", (_req, res) => {
@@ -53,6 +103,49 @@ apiRouter.get("/amap/browser-config", (_req, res) => {
     jsKey: config.amapJsKey,
     securityJsCode: config.amapSecurityJsCode
   });
+});
+
+apiRouter.post("/assistant-chat", async (req, res) => {
+  const message = String(req.body?.message || "").trim().slice(0, 2000);
+  if (!message) {
+    return res.status(400).json({
+      ok: false,
+      error: "EMPTY_MESSAGE",
+      message: "请输入你想咨询的问题。"
+    });
+  }
+
+  const pageContext = compactAssistantContext(req.body?.pageContext || {});
+  const history = normalizeAssistantHistory(req.body?.history || []);
+  const userPayload = [
+    `当前页面上下文：${JSON.stringify(pageContext)}`,
+    `用户问题：${message}`
+  ].join("\n\n");
+
+  try {
+    const answer = await callDeepSeekText({
+      system: assistantSystem,
+      messages: [...history, { role: "user", content: userPayload }],
+      temperature: 0.35
+    });
+
+    res.json({
+      ok: true,
+      answer: answer || "我暂时没有生成有效回复，请换一种问法再试。",
+      suggestedPrompts: ["继续问当前页面", "解释建筑术语", "检查缺失条件"],
+      source: "deepseek"
+    });
+  } catch (error) {
+    const code = error.code || error.message || "ASSISTANT_CHAT_FAILED";
+    res.status(error.status || 500).json({
+      ok: false,
+      error: code,
+      message:
+        code === "MISSING_DEEPSEEK_API_KEY"
+          ? "AI 助手暂未配置模型服务。"
+          : "AI 助手暂时无法连接模型服务，请稍后再试。"
+    });
+  }
 });
 
 apiRouter.post("/parse-brief", async (req, res) => {

@@ -13,12 +13,26 @@ const cleanAreaName = (value = "") =>
     .replace(/[：:，,、\s]+$/, "")
     .trim();
 
-export function extractAreaProgram(text = "") {
-  const lines = String(text)
-    .replace(/\r/g, "")
-    .split("\n")
+const AREA_UNIT_PATTERN = "(?:㎡|m²|m2|平方米|平米)";
+
+const splitAreaTextRows = (text = "") =>
+  String(text)
+    .replace(/\r/g, "\n")
+    .replace(/([^\n])(?=(?:[（(]\s*\d+\s*[）)]|\d+[.、]))/g, "$1\n")
+    .replace(/(包括|含)\s*(?=[\u4e00-\u9fa5A-Za-zA-Z])/g, "$1\n")
+    .replace(
+      new RegExp(
+        `(${AREA_UNIT_PATTERN})([）)]?)(?=\\s*[\\u4e00-\\u9fa5A-Za-z][^\\n；;]{0,28}?\\d)`,
+        "gi"
+      ),
+      "$1$2\n"
+    )
+    .split(/\n|；|;/)
     .map((raw) => ({ raw, text: raw.replace(/\s+/g, " ").trim() }))
     .filter((item) => item.text);
+
+export function extractAreaProgram(text = "") {
+  const lines = splitAreaTextRows(text);
   const headingIndex = lines.findIndex((item) =>
     /(?:面积组成|功能面积(?:组成|分配|分表)?|面积配比|建设规模及内容)/.test(
       item.text
