@@ -16,6 +16,7 @@
   display: none !important;
 }
 
+.step12-boundary-page .step12-legacy-input-header,
 .step12-site-page .step12-legacy-input-header {
   display: none !important;
 }
@@ -36,6 +37,128 @@
 
 .step12-boundary-page #id-section-c.step12-function-migrated-out {
   display: none !important;
+}
+
+.step12-boundary-page #id-section-b.step12-scale-migrated-out {
+  display: none !important;
+}
+
+.step12-project-info-section {
+  overflow: hidden;
+}
+
+.step12-project-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 28px;
+  margin-top: 28px;
+}
+
+.step12-project-info-field,
+.step12-project-extra-field {
+  min-width: 0;
+}
+
+.step12-project-info-field :is(input, select, textarea),
+.step12-project-extra-field :is(input, select, textarea) {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  background: #fff;
+  color: #171717;
+  font-size: 15px;
+  line-height: 1.5;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.step12-project-info-field :is(input, select, textarea):focus,
+.step12-project-extra-field :is(input, select, textarea):focus {
+  border-color: #111;
+  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.06);
+  outline: none;
+}
+
+.step12-project-extra-field {
+  display: grid;
+  gap: 10px;
+}
+
+.step12-project-extra-field > span {
+  color: #575757;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.step12-project-extra-field textarea {
+  min-height: 120px;
+  padding: 14px 16px;
+  resize: vertical;
+}
+
+.step12-project-extra-projectDescription {
+  grid-column: 1 / -1;
+}
+
+.step12-project-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 26px;
+  padding: 18px 20px;
+  border: 1px solid #e8e8e8;
+  border-radius: 16px;
+  background: #fafafa;
+}
+
+.step12-project-actions strong {
+  display: block;
+  color: #111;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.step12-project-actions p {
+  margin: 4px 0 0;
+  color: #8a8a8a;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.step12-project-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.step12-secondary-action {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #dedede;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.step12-secondary-action:hover {
+  border-color: #111;
+}
+
+@media (max-width: 900px) {
+  .step12-project-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .step12-project-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 #boundary-requirements-editor {

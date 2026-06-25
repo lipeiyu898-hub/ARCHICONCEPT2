@@ -17,7 +17,7 @@ const PREFLIGHT_FIELD_META = {
   area: ["用地面积", "未填写或无有效红线面积", "无法进行容量、密度与体量判断。", "id-section-a"],
   programAndSite: ["功能需求与场地问题", "均未填写", "无法识别核心任务、场地矛盾和设计风险。", "id-section-c"],
   far: ["容积率", "未填写", "可能影响开发强度与容量判断。", "id-section-b"],
-  gfa: ["总建筑面积", "未填写", "可能影响容量判断、功能分配和体量推导。", "id-section-b"],
+  gfa: ["总建筑面积", "未填写", "可能影响容量判断、功能分配和体量推导。", "id-section-a"],
   height: ["建筑高度", "未填写", "可能影响高度控制、层级组织和城市界面判断。", "id-section-b"],
   floors: ["层数范围", "未填写", "可能影响垂直功能组织和交通核判断。", "id-section-b"],
   redLineArea: ["红线面积", "未确认", "可能影响边界退让、容量和可建设范围判断。", "id-section-b"],
@@ -371,10 +371,7 @@ window.__ARCHICONCEPT_BUILD_INPUT_PREFLIGHT__ = ({
     }
   });
 
-  if (parsed.far.empty) warning.push(makePreflightItem("far"));
   if (parsed.gfa.empty) warning.push(makePreflightItem("gfa"));
-  if (parsed.height.empty) warning.push(makePreflightItem("height"));
-  if (floorResult.empty) warning.push(makePreflightItem("floors"));
   if (!hasValidBoundary) warning.push(makePreflightItem("redLineArea"));
   if (entranceCount <= 0) warning.push(makePreflightItem("siteEntrance"));
   if (contextStatus !== "已完成") warning.push(makePreflightItem("contextAnalysis"));
