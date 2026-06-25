@@ -209,15 +209,67 @@ const getLegacyField = (name) => {
 
 const setLegacyFieldValue = (name, value) => {
   const field = getLegacyField(name);
-  if (!field) return;
-  const prototype =
-    field instanceof HTMLTextAreaElement
-      ? HTMLTextAreaElement.prototype
-      : HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-  setter?.call(field, value);
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-  field.dispatchEvent(new Event("change", { bubbles: true }));
+  if (field) {
+    const prototype =
+      field instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+    setter?.call(field, value);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+
+  const packageData = store.getPackage("boundaryAnchorPackage");
+  const data = packageData?.data || {};
+  const currentRequirements = data.functionRequirements || {};
+  const patchData = {};
+  const sourceField = `functionRequirements.${name}`;
+
+  if (name === "siteCondition") {
+    patchData.functionRequirements = {
+      ...currentRequirements,
+      siteCondition: value
+    };
+  } else if (name === "needs") {
+    patchData.functionRequirements = {
+      ...currentRequirements,
+      program: value,
+      programItems: splitRequirementItems(value)
+    };
+  } else if (name === "users") {
+    patchData.functionRequirements = {
+      ...currentRequirements,
+      targetUsers: value,
+      targetUserItems: splitRequirementItems(value)
+    };
+  } else if (name === "areaProgram") {
+    const targetGfaM2 = Number(data.hardControls?.grossFloorAreaM2) || 0;
+    const items = parseAreaProgram(value, targetGfaM2);
+    patchData.areaProgram = {
+      targetGfaM2: targetGfaM2 || null,
+      items,
+      allocatedAreaM2: items
+        .filter((item) => Number(item.level) === 1 || !item.parentId)
+        .reduce((sum, item) => sum + (Number(item.areaM2) || 0), 0),
+      legacyText: value
+    };
+  } else {
+    patchData[name] = value;
+  }
+
+  store.updatePackage(
+    "boundaryAnchorPackage",
+    {
+      data: patchData
+    },
+    {
+      source: "manualEdit",
+      reason: "Edit migrated project requirement input",
+      changedFields: [sourceField]
+    }
+  );
 };
 
 const constraintVisualTarget = (field) => {
@@ -523,19 +575,20 @@ const saveSiteCondition = (overlay) => {
   queueRender();
 };
 
-const renderRequirementEditor = (packageData) => {
-  const section = document.querySelector("#id-section-c");
+const renderRequirementEditor = (packageData, mountSection = document.querySelector("#id-section-c")) => {
+  const section = mountSection;
   if (!section) return;
   const legacyBody = [...section.children].find(
     (child, index) => index > 0 && child.querySelector?.("textarea")
   );
   legacyBody?.classList.add("step12-c-legacy-fields");
 
-  let editor = document.querySelector("#boundary-requirements-editor");
+  let editor = section.querySelector("#boundary-requirements-editor");
   if (!editor) {
     editor = document.createElement("div");
     editor.id = "boundary-requirements-editor";
-    legacyBody?.after(editor);
+    if (legacyBody) legacyBody.after(editor);
+    else section.append(editor);
   }
 
   const model = currentRequirementModel(packageData);
@@ -578,6 +631,68 @@ const renderRequirementEditor = (packageData) => {
       </section>
     </div>
   `;
+};
+
+const renderFunctionRequirementEditor = (mountSection) => {
+  const packageData = store.getPackage("boundaryAnchorPackage");
+  if (!packageData || !mountSection) return;
+  renderRequirementEditor(packageData, mountSection);
+  bindRequirementEvents();
+};
+
+const renderStepOneFunctionBridge = (packageData) => {
+  const section = document.querySelector("#id-section-c");
+  if (!section) return;
+  const model = currentRequirementModel(packageData);
+  const items = calculateAreaProgramItems(model.areaItems);
+  const programs = items.length
+    ? items.slice(0, 8).map((item) => item.name)
+    : model.programItems.slice(0, 8);
+  setSectionHeading(
+    section,
+    "C",
+    "功能与空间",
+    "功能组成、使用人群、场地条件和面积分级表将在第 3 步集中处理。"
+  );
+  [...section.children].forEach((child, index) => {
+    if (index > 0) child.classList.add("step12-c-legacy-fields");
+  });
+  let bridge = section.querySelector("#boundary-function-step-bridge");
+  if (!bridge) {
+    bridge = document.createElement("div");
+    bridge.id = "boundary-function-step-bridge";
+    section.append(bridge);
+  }
+  bridge.classList.remove("step12-c-legacy-fields");
+  bridge.innerHTML = `
+    <div class="step12-bridge-card">
+      <div>
+        <span>已迁移到 Step 3</span>
+        <strong>功能需求与面积组成将在“功能与空间”中完成。</strong>
+        <p>本页只保留项目基本信息和规模边界。已导入或已填写的功能数据不会丢失，会在第 3 步继续编辑。</p>
+      </div>
+      <div class="step12-bridge-summary">
+        <span>功能项 ${items.length || model.programItems.length || 0}</span>
+        <span>使用人群 ${model.targetUserItems.length || 0}</span>
+      </div>
+    </div>
+    ${
+      programs.length
+        ? `<div class="step12-bridge-chips">${programs
+            .map((item) => `<span>${escapeHtml(item)}</span>`)
+            .join("")}</div>`
+        : ""
+    }
+  `;
+};
+
+const hideStepOneFunctionSection = () => {
+  const section = document.querySelector("#id-section-c");
+  if (!section) return;
+  section.classList.add("step12-function-migrated-out");
+  section
+    .querySelector("#boundary-requirements-editor, #boundary-function-step-bridge")
+    ?.remove();
 };
 
 const closeRequirementModal = () => {
@@ -1101,13 +1216,6 @@ const renderBoundarySections = () => {
     "规划指标与建设规模",
     "填写容积率、建筑密度、绿化率、建筑限高、总建筑面积和层数要求。"
   );
-  setSectionHeading(
-    document.querySelector("#id-section-c"),
-    "C",
-    "功能需求与面积组成",
-    "录入核心功能、使用人群、场地条件和功能面积分级表。"
-  );
-
   let taskBrief = document.querySelector("#boundary-task-brief");
   if (!taskBrief) {
     taskBrief = document.createElement("section");
@@ -1119,16 +1227,15 @@ const renderBoundarySections = () => {
     <div>
       <span>本页要完成什么</span>
       <strong>把项目条件整理成后续设计可读取的边界。</strong>
-      <p>先填基础信息、规划指标和功能面积。点击继续下一步时，系统会汇总待补充、估算和规范核对项。</p>
+      <p>先填写项目基础信息和规划指标。功能组成、使用人群与面积分级表将在第 3 步集中处理。</p>
     </div>
-    <ol aria-label="设计边界处理步骤">
+    <ol aria-label="项目信息处理步骤">
       <li>填条件</li>
       <li>下一步前核对</li>
-      <li>进入场地解析</li>
+      <li>进入基地与环境</li>
     </ol>
   `;
-  renderRequirementEditor(packageData);
-  bindRequirementEvents();
+  hideStepOneFunctionSection();
 
   document.querySelector("#boundary-anchor-review")?.remove();
   return;
@@ -1183,7 +1290,7 @@ const renderBoundarySections = () => {
       <span class="step12-section-index">D</span>
       <div>
         <h2>规范待确认条件</h2>
-        <p>系统只列出前期需要确认的规范相关条件，不替代正式审查。先处理会影响设计边界的内容。</p>
+        <p>系统只列出前期需要确认的规范相关条件，不替代正式审查。先处理会影响项目信息判断的内容。</p>
       </div>
       <span class="step12-norm-count">${review.norms.length ? `${review.norms.length} 项已关联` : "待生成"}</span>
     </header>
@@ -1316,7 +1423,7 @@ const renderBoundarySections = () => {
                 ? `，其中 ${review.conflictConstraints.length} 项存在冲突`
                 : ""
             }。先处理冲突和必须补充项，其余可后续复核。`
-          : "设计边界已建立，可以进入场地解析。"
+          : "项目信息已建立，可以进入基地与环境。"
       }</p>
     </div>
     <section class="step12-action-center">
@@ -1398,7 +1505,7 @@ const renderSiteAnalysis = () => {
     title.textContent = "场地定位与地图编辑";
   }
   const siteDescription =
-    "确认项目位置、用地红线、场地入口与周边分析范围，地图结果将形成场地解析数据。";
+    "确认项目位置、用地红线、场地入口与周边分析范围，地图结果将形成基地与环境数据。";
   if (description) {
     if (description.textContent?.trim() !== siteDescription) {
       description.textContent = siteDescription;
@@ -1452,7 +1559,7 @@ const renderSiteAnalysis = () => {
     <header class="step12-section-header">
       <span class="step12-section-index">B</span>
       <div>
-        <h2>场地解析输出</h2>
+        <h2>基地与环境输出</h2>
         <p>地图数据被转译为限制、机会、SWOT 与后续设计影响提示。</p>
       </div>
       <span class="step12-progress">${completed} / 4 已形成</span>
@@ -1544,4 +1651,4 @@ if (typeof document !== "undefined") {
   queueRender();
 }
 
-export { deriveBoundaryReview, useNormEstimate };
+export { deriveBoundaryReview, renderFunctionRequirementEditor, useNormEstimate };

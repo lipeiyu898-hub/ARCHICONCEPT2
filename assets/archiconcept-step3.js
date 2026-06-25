@@ -6,6 +6,7 @@ import {
   store,
   validateFunctionConstructData
 } from "./archiconcept-data-chain.js";
+import { renderFunctionRequirementEditor } from "./archiconcept-step12.js";
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -416,9 +417,11 @@ const renderWorkspace = () => {
     (item) => Number(item.level) === 1
   ).length;
   const validation = validateFunctionConstructData(data);
+  const boundaryPackage = store.getPackage("boundaryAnchorPackage");
   const signature = JSON.stringify({
     data,
-    blockingItems: validation.blockingItems
+    blockingItems: validation.blockingItems,
+    boundaryRevision: boundaryPackage?.revision
   });
   if (workspace.dataset.signature === signature) return;
   workspace.dataset.signature = signature;
@@ -431,6 +434,13 @@ const renderWorkspace = () => {
     .join("");
 
   workspace.innerHTML = `
+    <section class="step3-panel step3-migrated-requirements" id="step3-migrated-requirements">
+      <header class="step3-panel-header">
+        <div><span>A</span><h2>功能需求与面积组成</h2></div>
+      </header>
+      <p class="step3-panel-description">先确认场地条件、功能组成、使用人群和面积分级表，再进入功能关系与空间组织。</p>
+    </section>
+
     <div class="step3-overview">
       <div><span>一级功能</span><strong>${primaryCount}</strong><small>个分区</small></div>
       <div><span>目标面积</span><strong>${target.toLocaleString()}</strong><small>㎡</small></div>
@@ -443,7 +453,7 @@ const renderWorkspace = () => {
       <div class="step3-main-column">
         <section class="step3-panel">
           <header class="step3-panel-header">
-            <div><span>A</span><h2>功能分级与面积分配</h2></div>
+            <div><span>B</span><h2>功能分级与面积分配</h2></div>
             <div class="step3-header-actions">
               <button type="button" data-action="regenerate">根据前序条件重新生成</button>
               <button type="button" class="is-primary" data-action="add-function">新增功能</button>
@@ -458,7 +468,7 @@ const renderWorkspace = () => {
 
         <section class="step3-panel">
           <header class="step3-panel-header">
-            <div><span>B</span><h2>功能关系与气泡图</h2></div>
+            <div><span>C</span><h2>功能关系与气泡图</h2></div>
           </header>
           <p class="step3-panel-description">建立紧邻、相邻、隔离或无关关系。图中实线表示强联系，虚线表示一般联系。</p>
           <div class="step3-relation-layout">
@@ -483,7 +493,7 @@ const renderWorkspace = () => {
 
       <aside class="step3-side-column">
         <section class="step3-panel step3-area-panel">
-          <header class="step3-panel-header"><div><span>C</span><h2>面积校核</h2></div></header>
+          <header class="step3-panel-header"><div><span>D</span><h2>面积校核</h2></div></header>
           <label class="step3-target-area">目标总建筑面积
             <div><input type="number" min="1" step="100" data-global-field="targetGfaM2" value="${target}" /><span>㎡</span></div>
           </label>
@@ -497,7 +507,7 @@ const renderWorkspace = () => {
         </section>
 
         <section class="step3-panel">
-          <header class="step3-panel-header"><div><span>D</span><h2>动线体系</h2></div></header>
+          <header class="step3-panel-header"><div><span>E</span><h2>动线体系</h2></div></header>
           <div class="step3-circulation-fields">
             <label>主要人流
               <select data-circulation="publicFlow">${options([["independent", "独立组织"], ["shared", "局部共享"], ["integrated", "综合组织"]], data.circulationSystem.publicFlow)}</select>
@@ -515,7 +525,7 @@ const renderWorkspace = () => {
         </section>
 
         <section class="step3-panel">
-          <header class="step3-panel-header"><div><span>E</span><h2>冲突检测</h2></div><strong class="step3-count">${data.conflicts.length}</strong></header>
+          <header class="step3-panel-header"><div><span>F</span><h2>冲突检测</h2></div><strong class="step3-count">${data.conflicts.length}</strong></header>
           <div class="step3-conflict-list">${renderConflicts(data)}</div>
         </section>
 
@@ -523,8 +533,8 @@ const renderWorkspace = () => {
           data.normDerivedConstraints.length
             ? `
               <section class="step3-panel step3-norm-constraints">
-                <header class="step3-panel-header"><div><span>F</span><h2>规范约束输入</h2></div><strong class="step3-count">${data.normDerivedConstraints.length}</strong></header>
-                <p class="step3-panel-description">以下条件来自设计边界，已参与功能分区、邻接和动线组织判断。</p>
+                <header class="step3-panel-header"><div><span>G</span><h2>规范约束输入</h2></div><strong class="step3-count">${data.normDerivedConstraints.length}</strong></header>
+                <p class="step3-panel-description">以下条件来自项目信息，已参与功能分区、邻接和动线组织判断。</p>
                 <ul>
                   ${data.normDerivedConstraints
                     .map(
@@ -539,6 +549,9 @@ const renderWorkspace = () => {
       </aside>
     </div>
   `;
+  renderFunctionRequirementEditor(
+    workspace.querySelector("#step3-migrated-requirements")
+  );
 };
 
 const newFunction = () => {
@@ -584,6 +597,7 @@ const removeFunction = (id) => {
 };
 
 const handleClick = (event) => {
+  if (event.target.closest("#boundary-requirements-editor")) return;
   const button = event.target.closest("button[data-action]");
   if (!button || !draft) return;
   const action = button.dataset.action;
@@ -639,6 +653,7 @@ const handleClick = (event) => {
 };
 
 const handleChange = (event) => {
+  if (event.target.closest("#boundary-requirements-editor")) return;
   if (!draft) return;
   const functionRow = event.target.closest("[data-function-id]");
   const id = functionRow?.dataset.functionId;

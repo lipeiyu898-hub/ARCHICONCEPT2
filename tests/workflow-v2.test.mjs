@@ -26,7 +26,7 @@ const makeReadyBoundary = (chain) => {
 test("defines the new six-step workflow once", () => {
   assert.deepEqual(
     WORKFLOW_V2_STEPS.map((step) => step.title),
-    ["设计边界", "场地解析", "功能建构", "概念生成", "形态落位", "比选定型"]
+    ["项目信息", "基地与环境", "功能与空间", "方案生成", "方案优化", "成果输出"]
   );
   assert.deepEqual(
     WORKFLOW_V2_STEPS.map((step) => step.packageName),
@@ -44,12 +44,12 @@ test("defines the new six-step workflow once", () => {
 test("defines the product shell navigation around the workflow", () => {
   assert.deepEqual(WORKFLOW_V2_PRODUCT_NAV.top, [
     "项目",
-    "档案",
-    "流程",
-    "实验室",
-    "工作台"
+    "设计",
+    "图库",
+    "AI助手",
+    "资源"
   ]);
-  assert.equal(WORKFLOW_V2_PRODUCT_NAV.activeTop, "工作台");
+  assert.equal(WORKFLOW_V2_PRODUCT_NAV.activeTop, "设计");
   assert.ok(WORKFLOW_V2_PRODUCT_NAV.primary.includes("概念方案"));
   assert.equal(WORKFLOW_V2_PRODUCT_NAV.activeSide, "概念方案");
   assert.ok(WORKFLOW_V2_PRODUCT_NAV.secondary.includes("项目设置"));
@@ -72,7 +72,7 @@ test("warns when entering program logic without site analysis", () => {
   const result = guardStepNavigation(makeReadyBoundary(createProjectDataChain()), 3, 1);
   assert.equal(result.allowed, true);
   assert.equal(result.severity, "warning");
-  assert.match(result.message, /场地定位与红线/);
+  assert.match(result.message, /基地位置与红线/);
 });
 
 test("blocks concept generation without minimum function data", () => {

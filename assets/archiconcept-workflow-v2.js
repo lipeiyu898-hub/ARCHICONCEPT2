@@ -9,79 +9,79 @@ import { deriveBoundaryReview, useNormEstimate } from "./archiconcept-step12.js"
 const WORKFLOW_V2_STEPS = Object.freeze([
   {
     step: 1,
-    route: "boundary-anchor",
-    title: "设计边界",
-    englishTitle: "Boundary Anchor",
-    shortEnglishTitle: "BOUNDARY ANCHOR",
+    route: "project-info",
+    title: "项目信息",
+    englishTitle: "Project Info",
+    shortEnglishTitle: "PROJECT INFO",
     packageName: "boundaryAnchorPackage",
-    description: "整理任务书、规划指标和功能要求，形成后续分析采用的条件基准。",
-    modules: ["项目基本信息", "规划指标", "功能与面积", "规范条件", "约束汇总"]
+    description: "录入项目基础信息、建设规模和任务书条件，形成后续设计的基础数据。",
+    modules: ["项目基本信息", "建设规模", "设计说明", "任务书导入", "条件确认"]
   },
   {
     step: 2,
     route: "site-analysis",
-    title: "场地解析",
-    englishTitle: "Site Analysis",
-    shortEnglishTitle: "SITE ANALYSIS",
+    title: "基地与环境",
+    englishTitle: "Site & Context",
+    shortEnglishTitle: "SITE & CONTEXT",
     packageName: "siteAnalysisPackage",
-    description: "解析场地限制与机会，形成可传递的场地判断。",
-    modules: ["地点与红线", "出入口", "周边设施", "限制与机会", "场地 SWOT"]
+    description: "确认基地位置、用地红线、入口和周边环境，建立场地判断。",
+    modules: ["场地定位", "边界与红线", "入口交通", "周边环境", "机会与限制"]
   },
   {
     step: 3,
-    route: "program-logic",
-    title: "功能建构",
-    englishTitle: "Program Logic",
-    shortEnglishTitle: "PROGRAM LOGIC",
+    route: "program-space",
+    title: "功能与空间",
+    englishTitle: "Program & Space",
+    shortEnglishTitle: "PROGRAM & SPACE",
     packageName: "functionConstructPackage",
-    description: "拆解功能需求，建立面积、关系和动线逻辑。",
-    modules: ["功能分级", "面积分配", "功能属性", "关系图谱", "动线与冲突"]
+    description: "拆解功能组成、服务人群、面积分配和空间关系。",
+    modules: ["核心功能", "服务对象", "面积分配", "空间关系", "动线要求"]
   },
   {
     step: 4,
-    route: "concept-strategy",
-    title: "概念生成",
-    englishTitle: "Concept Strategy",
-    shortEnglishTitle: "CONCEPT STRATEGY",
+    route: "generate",
+    title: "方案生成",
+    englishTitle: "Generate",
+    shortEnglishTitle: "GENERATE",
     packageName: "conceptStrategyPackage",
-    description: "从约束、场地和功能中提炼核心问题并绑定策略。",
-    modules: ["核心问题", "问题依据", "设计策略", "策略绑定", "核心概念"]
+    description: "根据项目信息、基地环境和功能空间生成多个方案方向。",
+    modules: ["生成依据", "策略摘要", "方案方向", "概念说明", "体量预览"]
   },
   {
     step: 5,
-    route: "massing-placement",
-    title: "形态落位",
-    englishTitle: "Massing Placement",
-    shortEnglishTitle: "MASSING PLACEMENT",
+    route: "optimize",
+    title: "方案优化",
+    englishTitle: "Optimize",
+    shortEnglishTitle: "OPTIMIZE",
     packageName: "massingPlacementPackage",
-    description: "将功能与概念转化为体块、总平和多方案布局。",
-    modules: ["入口落位", "功能体块", "操作链", "指标测算", "多方案总平"]
+    description: "对选定方案进行体量、流线、功能和指标优化。",
+    modules: ["当前方案", "体量调整", "流线优化", "指标对比", "优化建议"]
   },
   {
     step: 6,
-    route: "option-validation",
-    title: "比选定型",
-    englishTitle: "Option Validation",
-    shortEnglishTitle: "OPTION VALIDATION",
+    route: "deliverables",
+    title: "成果输出",
+    englishTitle: "Deliverables",
+    shortEnglishTitle: "DELIVERABLES",
     packageName: "finalConceptPackage",
-    description: "比较方案、校核硬性条件并形成最终概念方案。",
-    modules: ["方案比选", "硬性校核", "软性评分", "风险记录", "最终报告"]
+    description: "整理概念方案、图纸、说明和汇报材料，形成可交付成果。",
+    modules: ["成果类型", "成果预览", "导出设置", "交付清单", "导出记录"]
   }
 ]);
 
 const WORKFLOW_V2_PRODUCT_NAV = Object.freeze({
-  top: ["项目", "档案", "流程", "实验室", "工作台"],
+  top: ["项目", "设计", "图库", "AI助手", "资源"],
   primary: [
     "项目概览",
     "概念方案",
-    "概念生成",
+    "方案生成",
     "平面布局",
     "立面生成",
     "渲染表现",
     "图纸导出"
   ],
   secondary: ["文件管理", "协作成员", "项目设置"],
-  activeTop: "工作台",
+  activeTop: "设计",
   activeSide: "概念方案"
 });
 
@@ -169,12 +169,10 @@ const hasMinimumBoundaryData = (chain) => {
   const boundary = chain?.boundaryAnchorPackage;
   const identity = boundary?.data?.projectIdentity || {};
   const controls = boundary?.data?.hardControls || {};
-  const requirements = boundary?.data?.functionRequirements || {};
   return Boolean(
     identity.projectName &&
       identity.buildingType &&
-      (controls.siteAreaM2 || controls.buildableBoundaryAreaM2) &&
-      (requirements.program || requirements.siteCondition)
+      (controls.siteAreaM2 || controls.buildableBoundaryAreaM2)
   );
 };
 
@@ -210,8 +208,8 @@ const guardStepNavigation = (chain, targetStep, currentStep = chain?.currentStep
       severity: "blocking",
       targetStep: target,
       redirectStep: 1,
-      missingItems: boundary?.blockingItems || ["请先完成设计边界的最小必填项"],
-      message: "设计边界尚未达到进入后续阶段的条件。"
+      missingItems: boundary?.blockingItems || ["请先完成项目信息的最小必填项"],
+      message: "项目信息尚未达到进入后续阶段的条件。"
     };
   }
 
@@ -222,7 +220,7 @@ const guardStepNavigation = (chain, targetStep, currentStep = chain?.currentStep
       targetStep: target,
       redirectStep: 3,
       missingItems: ["一级功能结构", "核心面积或动线判断"],
-      message: "请先在功能建构中形成最小功能与动线判断。"
+      message: "请先在功能与空间中形成最小功能与动线判断。"
     };
   }
 
@@ -233,7 +231,7 @@ const guardStepNavigation = (chain, targetStep, currentStep = chain?.currentStep
       targetStep: target,
       redirectStep: 4,
       missingItems: ["核心问题", "对应设计策略或核心概念"],
-      message: "概念生成尚未形成问题与策略的有效对应。"
+      message: "方案生成尚未形成问题与策略的有效对应。"
     };
   }
 
@@ -252,7 +250,7 @@ const guardStepNavigation = (chain, targetStep, currentStep = chain?.currentStep
   if (target >= 3) {
     const site = chain?.siteAnalysisPackage;
     if (!site || site.completionStatus === "empty") {
-      warnings.push("场地定位与红线尚未确认，后续推导可信度会降低");
+      warnings.push("基地位置与红线尚未确认，后续推导可信度会降低");
     } else if (site.stale) {
       warnings.push("场地数据已发生变化，后续结果需要复核");
     }
@@ -281,7 +279,7 @@ const getStepSummary = (chain, step) => {
   const nextStep = WORKFLOW_V2_STEPS.find((item) => item.step === step + 1);
   let nextMessage = nextStep
     ? `完成本阶段后可进入「${nextStep.title}」。`
-    : "完成硬性校核后可锁定并导出最终方案。";
+    : "完成成果设置后可导出项目成果。";
 
   if (state.blockingCount) {
     nextMessage = `仍有 ${state.blockingCount} 个必须处理项。`;
@@ -377,12 +375,12 @@ const renderBoundaryAnchorSummary = (
     ? "需要复核"
     : pendingBoundaryItems.length
       ? `还有 ${pendingBoundaryItems.length} 项待处理`
-      : "可以进入场地解析";
+      : "可以进入基地与环境";
   const nextCopy = summary.state.stale
     ? "前序数据已变化，建议先复核本页条件。"
     : pendingBoundaryItems.length
       ? "先处理冲突和缺失项。暂时不确定的条件可以先用估算。"
-      : "设计边界已建立，下一步会读取这些基准条件。";
+      : "项目信息已建立，下一步会读取这些基础条件。";
   const metrics = [
     ["用地面积", formatSquareMeter(controls.siteAreaM2)],
     ["总建筑面积", formatSquareMeter(controls.grossFloorAreaM2)],
@@ -486,27 +484,42 @@ const renderBoundaryAnchorSummary = (
 
 const LEGACY_WORKFLOW_LABELS = Object.freeze(
   new Map([
-    ["输入条件", "设计边界"],
-    ["问题识别", "场地解析"],
-    ["空间意图", "功能建构"],
-    ["策略匹配", "概念生成"],
-    ["原型生成", "形态落位"],
-    ["解释输出", "比选定型"],
-    ["INPUT BRIEF", "BOUNDARY ANCHOR"],
-    ["PROBLEM ID", "SITE ANALYSIS"],
-    ["SPATIAL INTENT", "PROGRAM LOGIC"],
-    ["STRATEGY MATCH", "CONCEPT STRATEGY"],
-    ["PROTOTYPE GEN", "MASSING PLACEMENT"],
-    ["OUTCOME EXPLAIN", "OPTION VALIDATION"],
-    ["INPUT CONDITIONS", "BOUNDARY ANCHOR"],
-    ["ISSUE IDENTIFICATION", "SITE ANALYSIS"],
-    ["STRATEGY MATCHING", "CONCEPT STRATEGY"],
-    ["PROTOTYPE GENERATION", "MASSING PLACEMENT"],
-    ["EXPLAINABLE OUTPUT", "OPTION VALIDATION"],
-    ["开始输入条件 START INPUT", "开始设计边界 START"],
-    ["开始输入条件", "开始设计边界"],
+    ["输入条件", "项目信息"],
+    ["设计边界", "项目信息"],
+    ["问题识别", "基地与环境"],
+    ["场地解析", "基地与环境"],
+    ["空间意图", "功能与空间"],
+    ["功能建构", "功能与空间"],
+    ["策略匹配", "方案生成"],
+    ["概念生成", "方案生成"],
+    ["原型生成", "方案优化"],
+    ["形态落位", "方案优化"],
+    ["解释输出", "成果输出"],
+    ["比选定型", "成果输出"],
+    ["INPUT BRIEF", "PROJECT INFO"],
+    ["BOUNDARY ANCHOR", "PROJECT INFO"],
+    ["PROBLEM ID", "SITE & CONTEXT"],
+    ["SITE ANALYSIS", "SITE & CONTEXT"],
+    ["SPATIAL INTENT", "PROGRAM & SPACE"],
+    ["PROGRAM LOGIC", "PROGRAM & SPACE"],
+    ["STRATEGY MATCH", "GENERATE"],
+    ["CONCEPT STRATEGY", "GENERATE"],
+    ["PROTOTYPE GEN", "OPTIMIZE"],
+    ["MASSING PLACEMENT", "OPTIMIZE"],
+    ["OUTCOME EXPLAIN", "DELIVERABLES"],
+    ["OPTION VALIDATION", "DELIVERABLES"],
+    ["INPUT CONDITIONS", "PROJECT INFO"],
+    ["ISSUE IDENTIFICATION", "SITE & CONTEXT"],
+    ["STRATEGY MATCHING", "GENERATE"],
+    ["PROTOTYPE GENERATION", "OPTIMIZE"],
+    ["EXPLAINABLE OUTPUT", "DELIVERABLES"],
+    ["开始输入条件 START INPUT", "开始项目信息 START"],
+    ["开始设计边界 START", "开始项目信息 START"],
+    ["开始输入条件", "开始项目信息"],
+    ["开始设计边界", "开始项目信息"],
     ["START INPUT", "START"],
-    ["先从输入条件开始吧", "先从设计边界开始"]
+    ["先从输入条件开始吧", "先从项目信息开始"],
+    ["先从设计边界开始", "先从项目信息开始"]
   ])
 );
 
@@ -536,7 +549,7 @@ const isWorkflowPage = () =>
     document.querySelector("#id-section-a") ||
       document.querySelector("#main-container-step2") ||
       [...document.querySelectorAll("main h1")].some((title) =>
-        /空间意图|策略匹配|原型生成|解释输出|功能建构|概念生成|形态落位|比选定型/.test(
+        /空间意图|策略匹配|原型生成|解释输出|功能建构|概念生成|形态落位|比选定型|功能与空间|方案生成|方案优化|成果输出/.test(
           title.textContent || ""
         )
       )
@@ -648,7 +661,7 @@ const renderStageHeader = (chain, step, main) => {
     const timeline =
       main.querySelector('[data-workflow-v2-timeline="true"]') ||
       [...main.children].find((child) =>
-        /输入条件|问题识别|空间意图|设计边界|场地解析|功能建构/.test(
+        /输入条件|问题识别|空间意图|设计边界|场地解析|功能建构|项目信息|基地与环境|功能与空间/.test(
           child.textContent || ""
         )
       );
@@ -698,9 +711,9 @@ const updateTimeline = (chain, step, main) => {
     const text = element.textContent || "";
     return (
       element.children.length >= 6 &&
-      /输入条件|设计边界/.test(text) &&
-      /问题识别|场地解析/.test(text) &&
-      /解释输出|比选定型/.test(text)
+      /输入条件|设计边界|项目信息/.test(text) &&
+      /问题识别|场地解析|基地与环境/.test(text) &&
+      /解释输出|比选定型|成果输出/.test(text)
     );
   });
   const timeline = candidates.sort(
@@ -710,12 +723,12 @@ const updateTimeline = (chain, step, main) => {
   timeline.dataset.workflowV2Timeline = "true";
 
   const oldNames = [
-    /输入条件|设计边界/,
-    /问题识别|场地解析/,
-    /空间意图|功能建构/,
-    /策略匹配|概念生成/,
-    /原型生成|形态落位/,
-    /解释输出|比选定型/
+    /输入条件|设计边界|项目信息/,
+    /问题识别|场地解析|基地与环境/,
+    /空间意图|功能建构|功能与空间/,
+    /策略匹配|概念生成|方案生成/,
+    /原型生成|形态落位|方案优化/,
+    /解释输出|比选定型|成果输出/
   ];
   WORKFLOW_V2_STEPS.forEach((config, index) => {
     const nameNode = [...timeline.querySelectorAll("div")].find(
@@ -863,10 +876,10 @@ const showBoundaryAnchorConfirmDialog = () => {
         <button type="button" data-action="cancel" aria-label="关闭">×</button>
       </header>
       <div class="workflow-v2-boundary-confirm-title">
-        <h2 id="workflow-v2-boundary-confirm-title">确认设计边界</h2>
-        <p>下面这些条件会带入“场地解析”。缺失项可以稍后补，冲突项需要先处理。</p>
+        <h2 id="workflow-v2-boundary-confirm-title">确认项目信息</h2>
+        <p>下面这些条件会带入“基地与环境”。缺失项可以稍后补，冲突项需要先处理。</p>
       </div>
-      <div class="workflow-v2-boundary-stats" aria-label="设计边界统计">
+      <div class="workflow-v2-boundary-stats" aria-label="项目信息统计">
         <div><span>已确认</span><strong>${review.confirmedConstraints.length + confirmedNorms.length}</strong></div>
         <div><span>待补充</span><strong>${missingConstraints.length + pendingNorms.length}</strong></div>
         <div><span>存在冲突</span><strong>${conflictConstraints.length}</strong></div>
@@ -906,7 +919,7 @@ const showBoundaryAnchorConfirmDialog = () => {
         }
         ${
           !hasBlocking
-            ? '<button type="button" data-action="continue">确认并进入场地解析</button>'
+            ? '<button type="button" data-action="continue">确认并进入基地与环境</button>'
             : ""
         }
       </footer>
@@ -961,11 +974,11 @@ const navigate = (step, options = {}) => {
 
 const findNativeNextButton = (step) => {
   const selectors = {
-    1: /开始问题识别|NEXT STEP/,
-    2: /进入空间意图|请先回答|使用系统估算继续/,
-    3: /进入策略匹配|下一步/,
-    4: /生成概念方案|进入原型|下一步/,
-    5: /进入解释输出|完成原型|下一步/
+    1: /开始问题识别|开始基地与环境|NEXT STEP/,
+    2: /进入空间意图|进入功能与空间|请先回答|使用系统估算继续/,
+    3: /进入策略匹配|进入方案生成|下一步/,
+    4: /生成概念方案|进入方案优化|进入原型|下一步/,
+    5: /进入解释输出|进入成果输出|完成原型|下一步/
   };
   const pattern = selectors[step];
   if (!pattern) return null;
@@ -1024,7 +1037,7 @@ const continueFromCurrentStep = (step) => {
         severity: "blocking",
         missingItems: validation.blockingItems,
         message:
-          "功能建构尚未达到进入概念生成的条件，请先完成一级功能分区与核心动线判断。"
+          "功能与空间尚未达到进入方案生成的条件，请先完成一级功能分区与核心动线判断。"
       });
       return;
     }
@@ -1047,7 +1060,7 @@ const continueFromCurrentStep = (step) => {
         severity: "blocking",
         missingItems: validation.blockingItems,
         message:
-          "概念生成尚未形成完整的问题、依据与策略绑定，请先处理阻断项。"
+          "方案生成尚未形成完整的问题、依据与策略绑定，请先处理阻断项。"
       });
       return;
     }

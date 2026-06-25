@@ -34,6 +34,10 @@
   white-space: nowrap !important;
 }
 
+.step12-boundary-page #id-section-c.step12-function-migrated-out {
+  display: none !important;
+}
+
 #boundary-requirements-editor {
   display: grid;
   gap: 24px;
@@ -94,6 +98,74 @@
   font-size: 10px;
   font-weight: 650;
   white-space: nowrap;
+}
+
+.step12-bridge-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #e7e7e2;
+  border-radius: 14px;
+  background: #fbfbf9;
+}
+
+.step12-bridge-card span {
+  display: block;
+  margin-bottom: 5px;
+  color: #8d8d86;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.step12-bridge-card strong {
+  display: block;
+  color: #252522;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.step12-bridge-card p {
+  margin: 6px 0 0;
+  color: #76766f;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.step12-bridge-summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.step12-bridge-summary span {
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid #e2e2dc;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f4f49;
+  white-space: nowrap;
+}
+
+.step12-bridge-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.step12-bridge-chips span {
+  padding: 7px 10px;
+  border: 1px solid #e4e4df;
+  border-radius: 999px;
+  background: #fff;
+  color: #454540;
+  font-size: 11px;
+  font-weight: 650;
 }
 
 .step12-requirement-grid {

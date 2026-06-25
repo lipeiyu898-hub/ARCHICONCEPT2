@@ -74,6 +74,24 @@
   background: #fff;
 }
 
+.step3-migrated-requirements {
+  padding-bottom: 20px;
+}
+
+.step3-migrated-requirements #boundary-requirements-editor {
+  margin-top: 18px;
+}
+
+.step3-migrated-requirements .step12-requirement-grid {
+  grid-template-columns: 1.1fr 1fr 1fr;
+}
+
+.step3-migrated-requirements .step12-site-condition,
+.step3-migrated-requirements .step12-chip-panel {
+  min-height: 142px;
+  background: #fdfdfb;
+}
+
 .step3-panel-header {
   display: flex;
   align-items: center;

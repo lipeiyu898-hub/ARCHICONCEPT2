@@ -470,21 +470,6 @@ const buildBoundaryValidation = (brief = {}) => {
   ) {
     addBlocking("siteAreaM2", "用地面积", "无法进行容量、密度和体量判断。");
   }
-  if (
-    !hasValue(
-      brief.needs ||
-        brief.program ||
-        brief.siteCondition ||
-        brief.siteInfo
-    )
-  ) {
-    addBlocking(
-      "functionRequirements",
-      "功能需求或场地问题",
-      "缺少主要功能，无法建立后续功能分级和面积关系。"
-    );
-  }
-
   [
     ["far", "容积率", "可能影响开发强度与容量校核。"],
     ["gfa", "总建筑面积", "可能影响功能面积分配与体量推导。"],

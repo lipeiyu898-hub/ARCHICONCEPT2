@@ -246,13 +246,6 @@ window.__ARCHICONCEPT_BUILD_INPUT_PREFLIGHT__ = ({
   if (!String(brief.location || "").trim() && !locationConfirmed) {
     blocking.push(makePreflightItem("location"));
   }
-  if (
-    !String(brief.needs || "").trim() &&
-    !String(brief.siteCondition || "").trim()
-  ) {
-    blocking.push(makePreflightItem("programAndSite"));
-  }
-
   const numericFields = [
     ["area", "用地面积", "㎡", "id-section-a"],
     ["gfa", "总建筑面积", "㎡", "id-section-b"],
@@ -385,23 +378,6 @@ window.__ARCHICONCEPT_BUILD_INPUT_PREFLIGHT__ = ({
   if (!hasValidBoundary) warning.push(makePreflightItem("redLineArea"));
   if (entranceCount <= 0) warning.push(makePreflightItem("siteEntrance"));
   if (contextStatus !== "已完成") warning.push(makePreflightItem("contextAnalysis"));
-  if (!String(brief.siteCondition || "").trim()) {
-    warning.push(makePreflightItem("planningRestrictions"));
-  }
-
-  const conditionText = [
-    brief.siteCondition,
-    brief.needs,
-    brief.areaProgram
-  ].filter(Boolean).join(" ");
-  [
-    ["parking", /停车|车位|车库|泊位|落客/],
-    ["pedestrianFlow", /人流|客流|步行|访客|使用人群/],
-    ["accessConditions", /出入口|入口|出口|后勤|消防通道/],
-    ["setback", /退界|退让|退距|建筑间距|红线距离/]
-  ].forEach(([key, pattern]) => {
-    if (!pattern.test(conditionText)) warning.push(makePreflightItem(key));
-  });
 
   const hasBlocking =
     blocking.length > 0 ||
@@ -1665,7 +1641,7 @@ source = source.replaceAll(
 );
 source = source.replaceAll(
   "已载入前海数据中心案例，可开始进行问题识别。",
-  "示例数据已载入。确认待处理条件后，可以进入场地解析。"
+  "示例数据已载入。确认待处理条件后，可以进入基地与环境。"
 );
 source = source.replaceAll(
   "任务书内容已填入，下一步将识别基地限制与设计问题。",
@@ -1850,6 +1826,14 @@ const replaceOnce = (needle, replacement, label) => {
   source = source.replace(needle, replacement);
 };
 
+const replaceOneOf = (needles, replacement, label) => {
+  const needle = needles.find((candidate) => source.includes(candidate));
+  if (!needle) {
+    throw new Error(`ARCHICONCEPT redline patch failed: ${label}`);
+  }
+  source = source.replace(needle, replacement);
+};
+
 replaceOnce(
   'source:"manual_draw",status:Ce',
   'source:window.__ARCHICONCEPT_REDLINE_SOURCE__||"manual_draw",status:Ce',
@@ -1858,13 +1842,13 @@ replaceOnce(
 
 replaceOnce(
   'const N=[{id:"01",title:"输入条件",desc:"定义项目背景、目标与约束条件。",icon:n.jsx(A1,{size:18})},{id:"02",title:"问题识别",desc:"识别核心问题与关键影响因素。",icon:n.jsx(Fc,{size:18})},{id:"03",title:"空间意图",desc:"提炼设计意图与空间愿景。",icon:n.jsx(CE,{size:18})},{id:"04",title:"策略匹配",desc:"匹配场地与功能需求，生成策略方向。",icon:n.jsx(mE,{size:18})},{id:"05",title:"原型生成",desc:"基于策略生成多个设计原型。",icon:n.jsx(K5,{size:18})},{id:"06",title:"解释输出",desc:"从多维度对方案进行评估与解读，输出结论与建议。",icon:n.jsx(jm,{size:18})}]',
-  'const N=[{id:"01",title:"设计边界",desc:"整理任务书、规划指标和功能要求，形成后续分析采用的条件基准。",icon:n.jsx(A1,{size:18})},{id:"02",title:"场地解析",desc:"解析场地限制与机会，形成场地判断。",icon:n.jsx(Fc,{size:18})},{id:"03",title:"功能建构",desc:"建立功能分级、面积关系和动线逻辑。",icon:n.jsx(CE,{size:18})},{id:"04",title:"概念生成",desc:"提炼核心问题并统合设计策略。",icon:n.jsx(mE,{size:18})},{id:"05",title:"形态落位",desc:"生成体块、总平和多方案布局方向。",icon:n.jsx(K5,{size:18})},{id:"06",title:"比选定型",desc:"完成方案比较、基础校核与最终定型。",icon:n.jsx(jm,{size:18})}]',
+  'const N=[{id:"01",title:"项目信息",desc:"录入项目基础信息、建设规模和任务书条件。",icon:n.jsx(A1,{size:18})},{id:"02",title:"基地与环境",desc:"确认基地位置、用地红线、入口和周边环境。",icon:n.jsx(Fc,{size:18})},{id:"03",title:"功能与空间",desc:"建立功能组成、面积分配和空间关系。",icon:n.jsx(CE,{size:18})},{id:"04",title:"方案生成",desc:"根据前置信息生成多个方案方向。",icon:n.jsx(mE,{size:18})},{id:"05",title:"方案优化",desc:"优化体量、流线、功能和指标。",icon:n.jsx(K5,{size:18})},{id:"06",title:"成果输出",desc:"整理图纸、说明和汇报材料。",icon:n.jsx(jm,{size:18})}]',
   "workflow v2 intro steps"
 );
 
 replaceOnce(
   'const a=[{id:"01",title:"输入条件",enLabel:"INPUT BRIEF",sub:"项目基础与规划约束"},{id:"02",title:"问题识别",enLabel:"PROBLEM ID",sub:"关键问题与限制判断"},{id:"03",title:"空间意图",enLabel:"SPATIAL INTENT",sub:"空间方向与组织倾向"},{id:"04",title:"策略匹配",enLabel:"STRATEGY MATCH",sub:"设计策略与生成逻辑"},{id:"05",title:"原型生成",enLabel:"PROTOTYPE GEN",sub:"由于控制优先形成的物理原型"},{id:"06",title:"解释输出",enLabel:"OUTCOME EXPLAIN",sub:"推演依据与结果说明"}]',
-  'const a=[{id:"01",title:"设计边界",enLabel:"BOUNDARY ANCHOR",sub:"项目条件与约束基准"},{id:"02",title:"场地解析",enLabel:"SITE ANALYSIS",sub:"场地限制与机会"},{id:"03",title:"功能建构",enLabel:"PROGRAM LOGIC",sub:"功能关系与动线"},{id:"04",title:"概念生成",enLabel:"CONCEPT STRATEGY",sub:"问题、策略与概念"},{id:"05",title:"形态落位",enLabel:"MASSING PLACEMENT",sub:"体块、总平与指标"},{id:"06",title:"比选定型",enLabel:"OPTION VALIDATION",sub:"比选、校核与报告"}]',
+  'const a=[{id:"01",title:"项目信息",enLabel:"PROJECT INFO",sub:"项目基础与建设规模"},{id:"02",title:"基地与环境",enLabel:"SITE & CONTEXT",sub:"场地、红线与周边"},{id:"03",title:"功能与空间",enLabel:"PROGRAM & SPACE",sub:"功能、面积与关系"},{id:"04",title:"方案生成",enLabel:"GENERATE",sub:"策略与方案方向"},{id:"05",title:"方案优化",enLabel:"OPTIMIZE",sub:"体量、流线与指标"},{id:"06",title:"成果输出",enLabel:"DELIVERABLES",sub:"图纸、说明与导出"}]',
   "workflow v2 timeline steps"
 );
 
@@ -2107,9 +2091,13 @@ replaceOnce(
   "reset confirmed site selection"
 );
 
-replaceOnce(
-  'Yc=()=>{Vn(ta),E("example"),z("demo"),kn(null),wt("示例数据已载入。确认待处理条件后，可以进入场地解析。"),N(!1)}',
-  'Yc=()=>{const v=window.__ARCHICONCEPT_DEMO_SITE_PACKAGE__,T={...ta,location:v.location.name,area:"40000",buildableArea:"40000",siteIntelligencePackage:v};Vn(T),Te({...v.location,location:{lng:v.location.lng,lat:v.location.lat}}),U(null),Ot(v.boundary.geometry.map(V=>({...V}))),vn(v.boundary.status),Di(v.boundary.areaM2),_a(v.boundary.perimeterM),Wn(v.entrances.map(V=>({...V}))),It("\\u5df2\\u5b8c\\u6210"),eo(500),Xr("\\u5df2\\u5b8c\\u6210"),Zr(v.surroundings),An([]),Hs(!1),setVisiblePoiLayers({traffic:!0}),window.__ARCHICONCEPT_REDLINE_SOURCE__=v.boundary.source,E("example"),z("demo"),kn(null),wt("\\u793a\\u4f8b\\u6570\\u636e\\u5df2\\u8f7d\\u5165\\u3002\\u786e\\u8ba4\\u5f85\\u5904\\u7406\\u6761\\u4ef6\\u540e\\uff0c\\u53ef\\u4ee5\\u8fdb\\u5165\\u573a\\u5730\\u89e3\\u6790\\u3002"),N(!1)}',
+replaceOneOf(
+  [
+    'Yc=()=>{Vn(ta),E("example"),z("demo"),kn(null),wt("示例数据已载入。确认待处理条件后，可以进入场地解析。"),N(!1)}',
+    'Yc=()=>{Vn(ta),E("example"),z("demo"),kn(null),wt("示例数据已载入。确认待处理条件后，可以进入基地与环境。"),N(!1)}',
+    'Yc=()=>{Vn(ta),E("example"),z("demo"),kn(null),wt("已载入前海数据中心案例，可开始进行问题识别。"),N(!1)}'
+  ],
+  'Yc=()=>{const v=window.__ARCHICONCEPT_DEMO_SITE_PACKAGE__,T={...ta,location:v.location.name,area:"40000",buildableArea:"40000",siteIntelligencePackage:v};Vn(T),Te({...v.location,location:{lng:v.location.lng,lat:v.location.lat}}),U(null),Ot(v.boundary.geometry.map(V=>({...V}))),vn(v.boundary.status),Di(v.boundary.areaM2),_a(v.boundary.perimeterM),Wn(v.entrances.map(V=>({...V}))),It("\\u5df2\\u5b8c\\u6210"),eo(500),Xr("\\u5df2\\u5b8c\\u6210"),Zr(v.surroundings),An([]),Hs(!1),setVisiblePoiLayers({traffic:!0}),window.__ARCHICONCEPT_REDLINE_SOURCE__=v.boundary.source,E("example"),z("demo"),kn(null),wt("\\u793a\\u4f8b\\u6570\\u636e\\u5df2\\u8f7d\\u5165\\u3002\\u786e\\u8ba4\\u5f85\\u5904\\u7406\\u6761\\u4ef6\\u540e\\uff0c\\u53ef\\u4ee5\\u8fdb\\u5165\\u57fa\\u5730\\u4e0e\\u73af\\u5883\\u3002"),N(!1)}',
   "complete example project with site editor data"
 );
 

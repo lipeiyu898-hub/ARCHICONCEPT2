@@ -339,7 +339,7 @@ const renderWorkspace = () => {
         <div class="step4-binding-list">${renderBindings(data)}</div>
       </section>
       <section class="step4-panel">
-        <header class="step4-panel-header"><div><span>E</span><h2>进入形态落位前校核</h2></div></header>
+        <header class="step4-panel-header"><div><span>E</span><h2>进入方案优化前校核</h2></div></header>
         <div class="step4-validation">
           ${
             validation.blockingItems.length
@@ -352,7 +352,7 @@ const renderWorkspace = () => {
                     </article>`
                   )
                   .join("")
-              : `<div class="step4-ready"><strong>问题与策略已形成有效对应</strong><p>当前概念具备进入形态落位的最小依据链。</p></div>`
+              : `<div class="step4-ready"><strong>问题与策略已形成有效对应</strong><p>当前概念具备进入方案优化的最小依据链。</p></div>`
           }
         </div>
       </section>
@@ -387,7 +387,7 @@ const handleClick = (event) => {
           id: `evidence-${Date.now()}`,
           source: "userInput",
           label: "用户输入",
-          detail: "用户在概念生成阶段补充。"
+          detail: "用户在方案生成阶段补充。"
         }
       ]
     });
@@ -529,4 +529,3 @@ if (typeof document !== "undefined") {
 }
 
 export { rebuildDerived };
-
