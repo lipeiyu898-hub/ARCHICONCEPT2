@@ -238,12 +238,12 @@ const constraintVisualTarget = (field) => {
   }
   if (field === "areaProgram") {
     return document.querySelector(
-      "#boundary-requirements-editor .step12-area-program"
+      "#boundary-requirements-editor .step12-function-composition"
     );
   }
   if (field === "siteCondition") {
     return document.querySelector(
-      '#boundary-requirements-editor [data-requirement-field="siteCondition"]'
+      "#boundary-requirements-editor .step12-site-condition"
     );
   }
   const input = document.querySelector(
@@ -357,6 +357,20 @@ const renderChips = (items, type, emptyText) =>
         .join("")
     : `<span class="step12-chip-empty">${escapeHtml(emptyText)}</span>`;
 
+const renderFunctionCompositionChips = (items) => {
+  return items.length
+    ? items
+        .map(
+          (item) => `
+          <button type="button" class="step12-function-chip is-level-${Number(item.level) || 1}" data-action="open-area-program" title="查看或修改功能面积组成">
+            <span>${escapeHtml(item.name)}</span>
+            <em>${formatArea(item.areaM2)}㎡</em>
+          </button>`
+        )
+        .join("")
+    : `<span class="step12-chip-empty">尚未建立功能面积组成</span>`;
+};
+
 const renderAreaRows = (items) =>
   items.length
     ? items
@@ -396,6 +410,119 @@ const renderAreaRows = (items) =>
         <span>新增一级功能后，可以一次补充其二级和三级功能。导入任务书时，系统会先识别功能层级供你确认。</span>
       </div>`;
 
+const renderAreaProgramPanel = (items, allocated, targetGfaM2) => {
+  const remaining = targetGfaM2 ? targetGfaM2 - allocated : null;
+  return `
+    <section class="step12-area-program">
+      <header>
+        <div>
+          <span>功能面积组成 <em>/ AREA PROGRAM</em></span>
+          <p>录入一级、二级和三级功能。父级面积用于核对，统计时不会重复计入。</p>
+        </div>
+        <button type="button" data-action="add-area">＋ 新增一级功能</button>
+      </header>
+      <div class="step12-area-table" role="table" aria-label="功能面积组成">
+        <div class="step12-area-row is-head" role="row">
+          <span>层级</span><span>功能名称</span><span>总面积</span><span>数量</span><span>单项面积</span><span>操作</span>
+        </div>
+        ${renderAreaRows(items)}
+      </div>
+      <footer class="step12-area-summary">
+        <span>已分配 <strong>${formatArea(allocated)} ㎡</strong></span>
+        ${
+          targetGfaM2
+            ? `<span>总建筑面积 <strong>${formatArea(targetGfaM2)} ㎡</strong></span>
+               <span class="${remaining < 0 ? "is-over" : ""}">剩余 <strong>${formatArea(remaining)} ㎡</strong></span>`
+            : `<span>填写总建筑面积后可校核分配差额</span>`
+        }
+      </footer>
+    </section>
+  `;
+};
+
+const syncProgramSummaryFromAreaItems = (items) => {
+  const rootNames = calculateAreaProgramItems(items)
+    .filter((item) => Number(item.level) === 1)
+    .map((item) => item.name)
+    .filter(Boolean);
+  setLegacyFieldValue("needs", [...new Set(rootNames)].join("、"));
+};
+
+const openAreaProgramModal = () => {
+  const packageData = store.getPackage("boundaryAnchorPackage");
+  const model = currentRequirementModel(packageData);
+  const items = calculateAreaProgramItems(model.areaItems);
+  const allocated = rootAreaTotal(items);
+  requirementModal = { kind: "areaProgram" };
+  document.querySelector(".step12-modal-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "step12-modal-overlay";
+  overlay.innerHTML = `
+    <div class="step12-modal is-area-program-editor" role="dialog" aria-modal="true" aria-labelledby="step12-modal-title">
+      <header>
+        <div>
+          <span>AREA PROGRAM</span>
+          <h3 id="step12-modal-title">功能面积组成</h3>
+        </div>
+        <button type="button" data-modal-action="close">×</button>
+      </header>
+      <div class="step12-area-program-modal-body">
+        ${renderAreaProgramPanel(items, allocated, model.targetGfaM2)}
+      </div>
+      <footer>
+        <span class="step12-modal-helper-text">保存后会回到 C 区，并自动更新“功能组成”标签。</span>
+        <div>
+          <button type="button" class="is-primary" data-modal-action="close">保存并返回</button>
+        </div>
+      </footer>
+    </div>
+  `;
+  document.body.append(overlay);
+};
+
+const openSiteConditionModal = () => {
+  const packageData = store.getPackage("boundaryAnchorPackage");
+  const model = currentRequirementModel(packageData);
+  requirementModal = { kind: "siteCondition" };
+  document.querySelector(".step12-modal-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "step12-modal-overlay";
+  overlay.innerHTML = `
+    <div class="step12-modal is-site-condition-editor" role="dialog" aria-modal="true" aria-labelledby="step12-modal-title">
+      <header>
+        <div>
+          <span>SITE INFO</span>
+          <h3 id="step12-modal-title">场地条件</h3>
+        </div>
+        <button type="button" data-modal-action="close">×</button>
+      </header>
+      <div class="step12-modal-form">
+        <label class="is-wide">
+          <span>场地条件说明</span>
+          <textarea name="siteConditionValue" autofocus placeholder="例如：滨海公共空间节点，需处理海岸、城市界面、步道、人流、视线与韧性问题。">${escapeHtml(model.siteCondition)}</textarea>
+        </label>
+      </div>
+      <footer>
+        <span></span>
+        <div>
+          <button type="button" data-modal-action="close">取消</button>
+          <button type="button" class="is-primary" data-modal-action="save-site-condition">保存</button>
+        </div>
+      </footer>
+    </div>
+  `;
+  document.body.append(overlay);
+  overlay.querySelector("[autofocus]")?.focus();
+};
+
+const saveSiteCondition = (overlay) => {
+  const value =
+    overlay.querySelector('[name="siteConditionValue"]')?.value.trim() || "";
+  setLegacyFieldValue("siteCondition", value);
+  closeRequirementModal();
+  queueRender();
+};
+
 const renderRequirementEditor = (packageData) => {
   const section = document.querySelector("#id-section-c");
   if (!section) return;
@@ -414,7 +541,6 @@ const renderRequirementEditor = (packageData) => {
   const model = currentRequirementModel(packageData);
   const items = calculateAreaProgramItems(model.areaItems);
   const allocated = rootAreaTotal(items);
-  const remaining = model.targetGfaM2 ? model.targetGfaM2 - allocated : null;
   const signature = JSON.stringify({
     siteCondition: model.siteCondition,
     programItems: model.programItems,
@@ -426,18 +552,20 @@ const renderRequirementEditor = (packageData) => {
   editor.dataset.renderSignature = signature;
   editor.innerHTML = `
     <div class="step12-requirement-grid">
-      <label class="step12-site-condition">
-        <span>场地条件 <em>/ SITE INFO</em></span>
-        <textarea data-requirement-field="siteCondition" placeholder="例如：滨海公共空间节点，需处理海岸、城市界面、步道、人流、视线与韧性问题。">${escapeHtml(model.siteCondition)}</textarea>
-      </label>
-      <section class="step12-chip-panel">
-        <header><span>主要功能 <em>/ PROGRAM</em></span></header>
-        <div class="step12-chip-list">${renderChips(
-          model.programItems,
-          "program",
-          "尚未添加主要功能"
-        )}</div>
-        <button type="button" class="step12-add-inline" data-action="add-chip" data-type="program">＋ 添加主要功能</button>
+      <section class="step12-site-condition">
+        <header><span>场地条件 <em>/ SITE INFO</em></span></header>
+        <button type="button" class="step12-site-condition-preview" data-action="edit-site-condition">
+          ${model.siteCondition ? escapeHtml(model.siteCondition) : "尚未填写场地条件"}
+        </button>
+        <button type="button" class="step12-add-inline" data-action="edit-site-condition">${model.siteCondition ? "查看 / 修改场地条件" : "填写场地条件"}</button>
+      </section>
+      <section class="step12-chip-panel step12-function-composition">
+        <header>
+          <span>功能组成 <em>/ PROGRAM</em></span>
+          <small>${items.length ? `${items.length} 项功能` : "待建立"}</small>
+        </header>
+        <div class="step12-chip-list">${renderFunctionCompositionChips(items)}</div>
+        <button type="button" class="step12-add-inline" data-action="open-area-program">${items.length ? "查看 / 修改功能面积" : "建立功能面积组成"}</button>
       </section>
       <section class="step12-chip-panel">
         <header><span>主要使用人群 <em>/ TARGET USERS</em></span></header>
@@ -449,30 +577,6 @@ const renderRequirementEditor = (packageData) => {
         <button type="button" class="step12-add-inline" data-action="add-chip" data-type="users">＋ 添加人群</button>
       </section>
     </div>
-    <section class="step12-area-program">
-      <header>
-        <div>
-          <span>功能面积组成 <em>/ AREA PROGRAM</em></span>
-          <p>按任务书录入一级、二级和三级功能。父级保留任务书声明面积，子项用于核对组成关系，统计时不会重复计入。</p>
-        </div>
-        <button type="button" data-action="add-area">＋ 新增一级功能</button>
-      </header>
-      <div class="step12-area-table" role="table" aria-label="功能面积组成">
-        <div class="step12-area-row is-head" role="row">
-          <span>层级</span><span>功能名称</span><span>总面积</span><span>数量</span><span>单项面积</span><span>操作</span>
-        </div>
-        ${renderAreaRows(items)}
-      </div>
-      <footer class="step12-area-summary">
-        <span>已分配 <strong>${formatArea(allocated)} ㎡</strong></span>
-        ${
-          model.targetGfaM2
-            ? `<span>总建筑面积 <strong>${formatArea(model.targetGfaM2)} ㎡</strong></span>
-               <span class="${remaining < 0 ? "is-over" : ""}">剩余 <strong>${formatArea(remaining)} ㎡</strong></span>`
-            : `<span>填写总建筑面积后可校核分配差额</span>`
-        }
-      </footer>
-    </section>
   `;
 };
 
@@ -762,6 +866,7 @@ const saveArea = (overlay) => {
       )
     : [...model.areaItems, nextItem];
   setLegacyFieldValue("areaProgram", serializeAreaProgram(items));
+  syncProgramSummaryFromAreaItems(items);
   closeRequirementModal();
   queueRender();
   if (isNewLevelOne) {
@@ -822,6 +927,7 @@ const saveAreaChildren = (overlay) => {
     "areaProgram",
     serializeAreaProgram([...retained, ...children])
   );
+  syncProgramSummaryFromAreaItems([...retained, ...children]);
   closeRequirementModal();
   queueRender();
 };
@@ -841,10 +947,9 @@ const deleteArea = (id) => {
       }
     });
   }
-  setLegacyFieldValue(
-    "areaProgram",
-    serializeAreaProgram(model.areaItems.filter((item) => !removeIds.has(item.id)))
-  );
+  const nextItems = model.areaItems.filter((item) => !removeIds.has(item.id));
+  setLegacyFieldValue("areaProgram", serializeAreaProgram(nextItems));
+  syncProgramSummaryFromAreaItems(nextItems);
   closeRequirementModal();
   queueRender();
 };
@@ -865,6 +970,8 @@ const bindRequirementEvents = () => {
     const trigger = event.target.closest?.("[data-action]");
     if (action === "add-chip") {
       openRequirementModal({ kind: "chip", type: trigger.dataset.type });
+    } else if (action === "edit-site-condition") {
+      openSiteConditionModal();
     } else if (action === "edit-chip") {
       openRequirementModal({
         kind: "chip",
@@ -873,6 +980,8 @@ const bindRequirementEvents = () => {
       });
     } else if (action === "add-area") {
       openRequirementModal({ kind: "area" });
+    } else if (action === "open-area-program") {
+      openAreaProgramModal();
     } else if (action === "edit-area") {
       openRequirementModal({ kind: "area", id: trigger.dataset.id });
     } else if (action === "complete-area-children") {
@@ -903,6 +1012,7 @@ const bindRequirementEvents = () => {
     if (modalAction === "delete-chip") deleteChip();
     if (modalAction === "save-area") saveArea(overlay);
     if (modalAction === "save-area-children") saveAreaChildren(overlay);
+    if (modalAction === "save-site-condition") saveSiteCondition(overlay);
     if (modalAction === "add-level-two") {
       appendAreaChildRow(overlay, {}, 2);
     }
@@ -995,10 +1105,33 @@ const renderBoundarySections = () => {
     document.querySelector("#id-section-c"),
     "C",
     "功能需求与面积组成",
-    "填写项目的主要功能、使用人群、场地特殊条件和功能面积分表。"
+    "录入核心功能、使用人群、场地条件和功能面积分级表。"
   );
+
+  let taskBrief = document.querySelector("#boundary-task-brief");
+  if (!taskBrief) {
+    taskBrief = document.createElement("section");
+    taskBrief.id = "boundary-task-brief";
+    taskBrief.className = "step12-task-brief";
+    document.querySelector("#id-section-a")?.before(taskBrief);
+  }
+  taskBrief.innerHTML = `
+    <div>
+      <span>本页要完成什么</span>
+      <strong>把项目条件整理成后续设计可读取的边界。</strong>
+      <p>先填基础信息、规划指标和功能面积。点击继续下一步时，系统会汇总待补充、估算和规范核对项。</p>
+    </div>
+    <ol aria-label="设计边界处理步骤">
+      <li>填条件</li>
+      <li>下一步前核对</li>
+      <li>进入场地解析</li>
+    </ol>
+  `;
   renderRequirementEditor(packageData);
   bindRequirementEvents();
+
+  document.querySelector("#boundary-anchor-review")?.remove();
+  return;
 
   let section = document.querySelector("#boundary-anchor-review");
   if (!section) {
@@ -1049,10 +1182,10 @@ const renderBoundarySections = () => {
     <header class="step12-section-header step12-norm-header">
       <span class="step12-section-index">D</span>
       <div>
-        <h2>前期规范核对</h2>
-        <p>根据项目类型、功能和场地条件，先列出需要提前核对的规范方向。这里不是正式审查结论，用于帮助你发现会影响方案边界的条件。</p>
+        <h2>规范待确认条件</h2>
+        <p>系统只列出前期需要确认的规范相关条件，不替代正式审查。先处理会影响设计边界的内容。</p>
       </div>
-      <span class="step12-norm-count">${review.norms.length ? `${review.norms.length} 项规范已关联` : "待生成"}</span>
+      <span class="step12-norm-count">${review.norms.length ? `${review.norms.length} 项已关联` : "待生成"}</span>
     </header>
     ${review.norms.length
       ? `    <div class="step12-norm-summary">
@@ -1060,15 +1193,15 @@ const renderBoundarySections = () => {
       <div><span>待确认条件</span><strong>${pendingNormCount}</strong></div>
       <div><span>采用估算</span><strong>${estimatedNormCount}</strong></div>
       <div><span>已确认</span><strong>${confirmedNormCount}</strong></div>
-      <p>优先处理待确认条件。规范名称和编号保留在下方，作为匹配依据查看。</p>
+      <p>先处理待确认条件。规范名称和编号收在下方，需要核对来源时再展开。</p>
     </div>
     <section class="step12-norm-workbench" aria-label="待确认规范条件">
       <header>
         <div>
-          <h3>待确认条件</h3>
-          <p>这些条件会写入设计约束基准。你可以补充明确要求，也可以先采用系统估算，后续再复核。</p>
+          <h3>需要你确认的条件</h3>
+          <p>有明确要求就直接补充；暂时不确定时可先用估算，后续仍可修改。</p>
         </div>
-        <span>${pendingNormCount} 项待处理</span>
+        <span>${pendingNormCount} 项待确认</span>
       </header>
       <div class="step12-norm-condition-list">
         ${
@@ -1088,7 +1221,7 @@ const renderBoundarySections = () => {
                           condition.status === "userConfirmed"
                             ? "已确认"
                             : condition.status === "systemEstimated"
-                              ? "已采用估算，建议后续复核"
+                              ? "已采用估算，可后续修改"
                               : "待确认"
                         }</small>
                       </div>
@@ -1096,7 +1229,7 @@ const renderBoundarySections = () => {
                         <button type="button" data-action="edit-norm-constraint" data-constraint-id="${escapeHtml(condition.id)}">${condition.status === "pending" ? "补充条件" : "修改"}</button>
                         ${
                           condition.status === "pending"
-                            ? `<button type="button" data-action="estimate-norm-constraint" data-constraint-id="${escapeHtml(condition.id)}">采用估算</button>`
+                            ? `<button type="button" data-action="estimate-norm-constraint" data-constraint-id="${escapeHtml(condition.id)}">先用估算</button>`
                             : ""
                         }
                       </div>
@@ -1111,7 +1244,7 @@ const renderBoundarySections = () => {
       <summary>
         <span>
           <strong>查看规范匹配依据</strong>
-          <small>展开后查看系统为什么关联这些规范。</small>
+          <small>展开后查看触发原因和核对方向。</small>
         </span>
         <em>${review.norms.length} 项</em>
       </summary>
@@ -1158,7 +1291,7 @@ const renderBoundarySections = () => {
 `
       : `    <div class="step12-norm-empty-state">
       <strong>尚未生成规范核对项</strong>
-      <p>请先填写建筑类型、主要功能，或导入任务书。系统会根据项目条件列出需要提前核对的规范方向。</p>
+      <p>请先填写建筑类型、主要功能，或导入任务书。系统会根据已有条件列出需要提前核对的内容。</p>
     </div>
 `}
     <p class="step12-norm-disclaimer">规范版本、地方条文和主管部门要求仍需由项目团队或专业顾问复核。</p>
@@ -1167,7 +1300,7 @@ const renderBoundarySections = () => {
       <span class="step12-section-index">E</span>
       <div>
         <h2>设计约束基准</h2>
-        <p>这里汇总已确认、采用估算、待补充和存在冲突的条件。后续步骤将直接读取已确认条件和用户接受的估算值。</p>
+        <p>前面填写、确认和估算的条件会在这里合并。后续步骤只读取这些基准条件。</p>
       </div>
       <button type="button" class="step12-export-button" data-action="export-constraints">导出表格</button>
     </header>
@@ -1182,15 +1315,15 @@ const renderBoundarySections = () => {
               review.conflictConstraints.length
                 ? `，其中 ${review.conflictConstraints.length} 项存在冲突`
                 : ""
-            }。请先处理冲突和必须补充项。`
-          : "当前条件已处理完毕，可以进入下一步。"
+            }。先处理冲突和必须补充项，其余可后续复核。`
+          : "设计边界已建立，可以进入场地解析。"
       }</p>
     </div>
     <section class="step12-action-center">
       <header>
         <div>
-          <h3>待处理条件</h3>
-          <p>点击“填写”或“核对”，可以返回对应的输入位置。</p>
+          <h3>下一步前先处理</h3>
+          <p>点击按钮回到对应位置。</p>
         </div>
         <span>${review.pendingConstraints.length}</span>
       </header>
@@ -1208,7 +1341,6 @@ const renderBoundarySections = () => {
                     <div>
                       <h4>${escapeHtml(item.label)}</h4>
                       <p>${escapeHtml(item.issue || item.currentValue)}</p>
-                      <small>影响：${escapeHtml(item.impact)}</small>
                     </div>
                     <button type="button" data-action="locate-constraint" data-field="${escapeHtml(item.targetField)}">
                       ${item.statusCode === "conflict" ? "核对" : "填写"}
@@ -1219,15 +1351,15 @@ const renderBoundarySections = () => {
             : `
               <div class="step12-action-empty">
                 <strong>当前没有待处理项</strong>
-                <span>后续步骤将读取已确认条件和采用的估算值。</span>
+                <span>后续步骤会读取已确认条件和采用的估算值。</span>
               </div>`
         }
       </div>
     </section>
     <details class="step12-constraint-details">
       <summary>
-        <span><strong>查看全部条件</strong><em>${review.constraints.length} 项</em></span>
-        <small>查看每项条件的来源、当前状态和处理方式。</small>
+        <span><strong>查看完整基准表</strong><em>${review.constraints.length} 项</em></span>
+        <small>需要核对来源时再展开。</small>
       </summary>
       <div class="step12-constraint-table" role="table" aria-label="设计约束总表">
         <div class="step12-constraint-row is-head" role="row">
@@ -1412,4 +1544,4 @@ if (typeof document !== "undefined") {
   queueRender();
 }
 
-export { deriveBoundaryReview };
+export { deriveBoundaryReview, useNormEstimate };

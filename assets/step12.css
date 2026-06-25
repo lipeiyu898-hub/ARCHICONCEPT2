@@ -39,6 +39,63 @@
   gap: 24px;
 }
 
+.step12-task-brief {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid #e7e7e2;
+  border-radius: 14px;
+  background: #fbfbf9;
+}
+
+.step12-task-brief span {
+  display: block;
+  margin-bottom: 4px;
+  color: #8f8f88;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.step12-task-brief strong {
+  display: block;
+  color: #242422;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.step12-task-brief p {
+  max-width: 720px;
+  margin: 4px 0 0;
+  color: #777772;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.step12-task-brief ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step12-task-brief li {
+  padding: 6px 9px;
+  border: 1px solid #e1e1dc;
+  border-radius: 999px;
+  background: #fff;
+  color: #565650;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .step12-requirement-grid {
   display: grid;
   grid-template-columns: 1.05fr 1fr 1fr;
@@ -61,7 +118,7 @@
   flex-direction: column;
 }
 
-.step12-site-condition > span,
+.step12-site-condition header span,
 .step12-chip-panel header span,
 .step12-area-program > header span {
   color: #333330;
@@ -70,7 +127,20 @@
   line-height: 1.4;
 }
 
-.step12-site-condition em,
+.step12-chip-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.step12-chip-panel header small {
+  color: #9a9a94;
+  font-size: 9.5px;
+  font-weight: 650;
+}
+
+.step12-site-condition header em,
 .step12-chip-panel header em,
 .step12-area-program > header em {
   color: #a0a09a;
@@ -79,13 +149,19 @@
   font-weight: 600;
 }
 
-.step12-site-condition textarea {
+.step12-site-condition header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.step12-site-condition-preview {
   flex: 1;
   width: 100%;
   min-height: 104px;
   margin-top: 10px;
   padding: 0;
-  resize: none;
   border: 0;
   outline: 0;
   background: transparent;
@@ -93,10 +169,13 @@
   font: inherit;
   font-size: 12px;
   line-height: 1.65;
+  text-align: left;
+  white-space: pre-wrap;
+  cursor: pointer;
 }
 
-.step12-site-condition textarea::placeholder {
-  color: #aaa9a3;
+.step12-site-condition-preview:hover {
+  color: #11110f;
 }
 
 .step12-chip-list {
@@ -137,6 +216,64 @@
   color: #9b9b95;
   font-size: 12px;
   font-style: normal;
+}
+
+.step12-function-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 7px 9px;
+  border: 1px solid #e3e3de;
+  border-radius: 7px;
+  background: #f7f7f5;
+  color: #3f3f3b;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.step12-function-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step12-function-chip em {
+  color: #8f8f88;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.step12-function-chip.is-level-2 {
+  margin-left: 12px;
+  background: #fff;
+}
+
+.step12-function-chip.is-level-3 {
+  margin-left: 24px;
+  background: #fbfbf9;
+  color: #5f5f59;
+}
+
+.step12-function-chip.is-level-2::before,
+.step12-function-chip.is-level-3::before {
+  width: 6px;
+  height: 1px;
+  background: #c9c9c3;
+  content: "";
+}
+
+.step12-function-chip:hover {
+  border-color: #a9a9a3;
+  background: #fff;
+}
+
+.step12-function-helper {
+  margin: 9px 0 0;
+  color: #9a9a94;
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .step12-requirement-chip:hover,
@@ -227,6 +364,18 @@
   font-weight: 650;
 }
 
+.step12-area-row.is-level-1 {
+  background: #fdfdfb;
+}
+
+.step12-area-row.is-level-2 {
+  background: #fff;
+}
+
+.step12-area-row.is-level-3 {
+  background: #fbfbf9;
+}
+
 .step12-area-row > span,
 .step12-area-row > strong {
   color: #676762;
@@ -250,6 +399,26 @@
 
 .step12-area-row.is-level-1 > strong {
   font-weight: 750;
+}
+
+.step12-area-row.is-level-1 i {
+  background: #242422;
+  color: #fff;
+}
+
+.step12-area-row.is-level-2 i,
+.step12-area-row.is-level-3 i {
+  border: 1px solid #e1e1dc;
+  background: #fff;
+}
+
+.step12-area-row.is-level-2 > strong {
+  color: #3f3f3b;
+}
+
+.step12-area-row.is-level-3 > strong {
+  color: #5f5f59;
+  font-weight: 600;
 }
 
 .step12-area-row.is-level-2 > strong,
@@ -372,6 +541,38 @@
   width: min(920px, 100%);
   max-height: min(760px, calc(100dvh - 48px));
   overflow: auto;
+}
+
+.step12-modal.is-area-program-editor {
+  width: min(980px, calc(100vw - 48px));
+  max-height: min(780px, calc(100dvh - 48px));
+  display: flex;
+  flex-direction: column;
+}
+
+.step12-modal.is-site-condition-editor {
+  width: min(640px, calc(100vw - 48px));
+}
+
+.step12-modal.is-site-condition-editor textarea {
+  min-height: 220px;
+}
+
+.step12-area-program-modal-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  background: #fafaf8;
+}
+
+.step12-area-program-modal-body .step12-area-program {
+  box-shadow: 0 10px 30px rgb(0 0 0 / 4%);
+}
+
+.step12-modal-helper-text {
+  color: #92928c;
+  font-size: 10.5px;
+  line-height: 1.5;
 }
 
 .step12-modal > header,
@@ -660,6 +861,10 @@
 }
 
 @media (max-width: 720px) {
+  .step12-task-brief {
+    grid-template-columns: 1fr;
+  }
+
   .step12-requirement-grid,
   .step12-modal-form {
     grid-template-columns: 1fr;

@@ -4,6 +4,7 @@ import {
   validateConceptStrategyData,
   validateFunctionConstructData
 } from "./archiconcept-data-chain.js";
+import { deriveBoundaryReview, useNormEstimate } from "./archiconcept-step12.js";
 
 const WORKFLOW_V2_STEPS = Object.freeze([
   {
@@ -369,21 +370,40 @@ const renderBoundaryAnchorSummary = (
 ) => {
   const data = summary.packageData?.data || {};
   const controls = data.hardControls || {};
+  const pendingBoundaryItems = boundaryConstraints.filter((item) =>
+    ["missing", "conflict"].includes(item.statusCode)
+  );
+  const nextTitle = summary.state.stale
+    ? "需要复核"
+    : pendingBoundaryItems.length
+      ? `还有 ${pendingBoundaryItems.length} 项待处理`
+      : "可以进入场地解析";
+  const nextCopy = summary.state.stale
+    ? "前序数据已变化，建议先复核本页条件。"
+    : pendingBoundaryItems.length
+      ? "先处理冲突和缺失项。暂时不确定的条件可以先用估算。"
+      : "设计边界已建立，下一步会读取这些基准条件。";
   const metrics = [
     ["用地面积", formatSquareMeter(controls.siteAreaM2)],
     ["总建筑面积", formatSquareMeter(controls.grossFloorAreaM2)],
     ["容积率", formatPlainValue(controls.floorAreaRatio)],
-    ["建筑限高", formatPlainValue(controls.heightLimitM, controls.heightLimitM ? " m" : "")]
-  ];
-  const statusRows = [
-    ["场地定位", hasConfirmedSiteLocation(data, chain) ? "已确认" : "未确认"],
-    ["用地红线", hasConfirmedRedLine(data, chain) ? "已绘制" : "未绘制"],
     [
       "功能面积",
       getAreaProgramCount(data)
         ? `${getAreaProgramCount(data)} 项`
         : "未填写"
     ]
+  ];
+  const pendingPreview = pendingBoundaryItems.slice(0, 3);
+  const summaryRows = [
+    ["已确认", `${confirmedBoundaryCount} / ${boundaryConstraints.length}`],
+    [
+      "待处理",
+      pendingBoundaryItems.length
+        ? `${pendingBoundaryItems.length} 项`
+        : "0 项"
+    ],
+    ["采用估算", `${summary.state.assumptionCount} 项`]
   ];
 
   aside
@@ -402,30 +422,49 @@ const renderBoundaryAnchorSummary = (
         ${escapeHtml(summary.state.label)}
       </span>
     </div>
+    <div class="workflow-v2-boundary-next">
+      <span>下一步状态</span>
+      <strong>${escapeHtml(nextTitle)}</strong>
+      <p>${escapeHtml(nextCopy)}</p>
+    </div>
     <dl class="workflow-v2-summary-list">
-      <div><dt>条件确认度</dt><dd>${confirmedBoundaryCount} / ${boundaryConstraints.length}</dd></div>
-      <div><dt>必须处理</dt><dd>${summary.state.blockingCount} 项</dd></div>
-      <div><dt>采用估算</dt><dd>${summary.state.assumptionCount} 项</dd></div>
+      ${summaryRows
+        .map(
+          ([label, value]) => `
+            <div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
+          `
+        )
+        .join("")}
     </dl>
-    <div class="workflow-v2-summary-section">
-      <div class="workflow-v2-summary-section-title">关键指标</div>
-      <div class="workflow-v2-summary-metrics">
-        ${metrics
+    ${
+      pendingPreview.length
+        ? `<div class="workflow-v2-summary-section">
+      <div class="workflow-v2-summary-section-title">优先处理</div>
+      <div class="workflow-v2-boundary-pending-list">
+        ${pendingPreview
           .map(
-            ([label, value]) => `
-              <div>
-                <span>${escapeHtml(label)}</span>
-                <strong>${escapeHtml(value)}</strong>
+            (item) => `
+              <div class="workflow-v2-boundary-pending-item is-${escapeHtml(item.statusCode)}">
+                <span>${escapeHtml(item.status)}</span>
+                <strong>${escapeHtml(item.label)}</strong>
+                <em>${escapeHtml(item.category)}</em>
               </div>
             `
           )
           .join("")}
       </div>
-    </div>
+      ${
+        pendingBoundaryItems.length > pendingPreview.length
+          ? `<p class="workflow-v2-boundary-more">还有 ${pendingBoundaryItems.length - pendingPreview.length} 项在左侧列表中处理。</p>`
+          : ""
+      }
+    </div>`
+        : ""
+    }
     <div class="workflow-v2-summary-section">
-      <div class="workflow-v2-summary-section-title">场地与功能</div>
-      <div class="workflow-v2-summary-status-grid">
-        ${statusRows
+      <div class="workflow-v2-summary-section-title">关键输入</div>
+      <div class="workflow-v2-summary-metrics">
+        ${metrics
           .map(
             ([label, value]) => `
               <div>
@@ -442,13 +481,6 @@ const renderBoundaryAnchorSummary = (
         ? `<div class="workflow-v2-stale-note">前序数据已变更，建议复核本阶段内容。</div>`
         : ""
     }
-    <div class="workflow-v2-summary-assistant">
-      <div>
-        <span>ARCHICONCEPT ASSISTANT</span>
-        <p>这里保留本页关键条件，后续步骤会读取这些确认结果。</p>
-      </div>
-      <img src="/images/ip-input-guide2.png" alt="" aria-hidden="true" />
-    </div>
   `;
 };
 
@@ -767,6 +799,142 @@ const showNavigationDialog = (result, onContinue) => {
   });
 };
 
+const renderBoundaryConfirmItems = (items, emptyText, limit = 6) => {
+  if (!items.length) {
+    return `<div class="workflow-v2-boundary-empty">${escapeHtml(emptyText)}</div>`;
+  }
+  const visible = items.slice(0, limit);
+  const hiddenCount = Math.max(0, items.length - visible.length);
+  return `
+    <ul class="workflow-v2-boundary-list">
+      ${visible
+        .map(
+          (item) => `
+            <li>
+              <span>${escapeHtml(item.label || item.title || "待确认项")}</span>
+              <strong>${escapeHtml(item.currentValue || item.value || item.prompt || item.condition || item.status || "待补充")}</strong>
+            </li>`
+        )
+        .join("")}
+    </ul>
+    ${
+      hiddenCount
+        ? `<p class="workflow-v2-boundary-more">还有 ${hiddenCount} 项未展开。</p>`
+        : ""
+    }
+  `;
+};
+
+const confirmBoundaryAndNavigate = () => {
+  store.confirmPackage("boundaryAnchorPackage", {
+    source: "userInput",
+    reason: "Boundary anchor confirmed before entering site analysis",
+    invalidateDownstream: false
+  });
+  navigate(2, { skipWarning: true });
+};
+
+const showBoundaryAnchorConfirmDialog = () => {
+  document.querySelector(".workflow-v2-boundary-confirm-overlay")?.remove();
+  const packageData = store.getPackage("boundaryAnchorPackage");
+  const review = deriveBoundaryReview(packageData);
+  const missingConstraints = review.pendingConstraints.filter(
+    (item) => item.statusCode === "missing"
+  );
+  const conflictConstraints = review.pendingConstraints.filter(
+    (item) => item.statusCode === "conflict"
+  );
+  const pendingNorms = review.normDesignConstraints.filter(
+    (item) => item.status === "pending"
+  );
+  const estimatedNorms = review.normDesignConstraints.filter(
+    (item) => item.status === "systemEstimated"
+  );
+  const confirmedNorms = review.normDesignConstraints.filter(
+    (item) => item.status === "userConfirmed"
+  );
+  const hasBlocking = conflictConstraints.length > 0;
+  const overlay = document.createElement("div");
+  overlay.className = "workflow-v2-boundary-confirm-overlay";
+  overlay.innerHTML = `
+    <section class="workflow-v2-boundary-confirm" role="dialog" aria-modal="true" aria-labelledby="workflow-v2-boundary-confirm-title">
+      <header>
+        <span>STEP CHECK / 下一步前确认</span>
+        <button type="button" data-action="cancel" aria-label="关闭">×</button>
+      </header>
+      <div class="workflow-v2-boundary-confirm-title">
+        <h2 id="workflow-v2-boundary-confirm-title">确认设计边界</h2>
+        <p>下面这些条件会带入“场地解析”。缺失项可以稍后补，冲突项需要先处理。</p>
+      </div>
+      <div class="workflow-v2-boundary-stats" aria-label="设计边界统计">
+        <div><span>已确认</span><strong>${review.confirmedConstraints.length + confirmedNorms.length}</strong></div>
+        <div><span>待补充</span><strong>${missingConstraints.length + pendingNorms.length}</strong></div>
+        <div><span>存在冲突</span><strong>${conflictConstraints.length}</strong></div>
+        <div><span>系统估算</span><strong>${review.estimatedConstraints.length + estimatedNorms.length}</strong></div>
+      </div>
+      <div class="workflow-v2-boundary-grid">
+        <section>
+          <h3>已确认条件</h3>
+          ${renderBoundaryConfirmItems(review.confirmedConstraints, "暂无已确认条件。")}
+        </section>
+        <section>
+          <h3>待补充条件</h3>
+          ${renderBoundaryConfirmItems(
+            [...missingConstraints, ...pendingNorms],
+            "当前没有待补充条件。",
+            8
+          )}
+        </section>
+        <section>
+          <h3>系统估算项</h3>
+          ${renderBoundaryConfirmItems(
+            [...review.estimatedConstraints, ...estimatedNorms],
+            "当前没有采用估算的条件。"
+          )}
+        </section>
+        <section class="${hasBlocking ? "is-blocking" : ""}">
+          <h3>冲突项</h3>
+          ${renderBoundaryConfirmItems(conflictConstraints, "当前没有冲突项。")}
+        </section>
+      </div>
+      <footer>
+        <button type="button" data-action="cancel">返回修改</button>
+        ${
+          !hasBlocking && pendingNorms.length
+            ? '<button type="button" data-action="estimate">采用规范估算并继续</button>'
+            : ""
+        }
+        ${
+          !hasBlocking
+            ? '<button type="button" data-action="continue">确认并进入场地解析</button>'
+            : ""
+        }
+      </footer>
+    </section>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay
+    .querySelector('[data-action="cancel"]')
+    ?.addEventListener("click", close);
+  overlay
+    .querySelector('[data-action="continue"]')
+    ?.addEventListener("click", () => {
+      close();
+      confirmBoundaryAndNavigate();
+    });
+  overlay
+    .querySelector('[data-action="estimate"]')
+    ?.addEventListener("click", () => {
+      pendingNorms.forEach((item) => useNormEstimate(item.id));
+      close();
+      confirmBoundaryAndNavigate();
+    });
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) close();
+  });
+};
+
 const dispatchNavigation = (step) => {
   store.setCurrentStep(step);
   window.dispatchEvent(
@@ -829,12 +997,7 @@ const continueFromCurrentStep = (step) => {
       showNavigationDialog(result);
       return;
     }
-    store.confirmPackage("boundaryAnchorPackage", {
-      source: "userInput",
-      reason: "Boundary anchor confirmed before entering site analysis",
-      invalidateDownstream: false
-    });
-    navigate(2, { skipWarning: true });
+    showBoundaryAnchorConfirmDialog();
     return;
   }
   if (step === 2) {

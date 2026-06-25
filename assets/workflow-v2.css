@@ -531,6 +531,37 @@ body:not(.workflow-v2-sidebar-expanded) .workflow-v2-side-footer > small {
   padding-bottom: 18px;
 }
 
+.workflow-v2-boundary-next {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #e8e8e3;
+  border-radius: 10px;
+  background: #fafaf8;
+}
+
+.workflow-v2-boundary-next span {
+  color: #969690;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.workflow-v2-boundary-next strong {
+  color: #242422;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.workflow-v2-boundary-next p {
+  margin: 0;
+  color: #6f6f69;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
 .workflow-v2-summary-section {
   margin-top: 16px;
   padding-top: 14px;
@@ -577,6 +608,65 @@ body:not(.workflow-v2-sidebar-expanded) .workflow-v2-side-footer > small {
 .workflow-v2-summary-status-grid {
   display: grid;
   gap: 10px;
+}
+
+.workflow-v2-boundary-pending-list {
+  display: grid;
+  gap: 7px;
+}
+
+.workflow-v2-boundary-pending-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid #e8e8e3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.workflow-v2-boundary-pending-item.is-conflict {
+  background: #fffaf5;
+}
+
+.workflow-v2-boundary-pending-item span {
+  grid-row: span 2;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #f1f1ee;
+  color: #74746e;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.workflow-v2-boundary-pending-item.is-conflict span {
+  background: #f7eadf;
+  color: #8b5137;
+}
+
+.workflow-v2-boundary-pending-item strong {
+  overflow: hidden;
+  color: #30302d;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-v2-boundary-pending-item em {
+  color: #999993;
+  font-size: 9.5px;
+  font-style: normal;
+}
+
+.workflow-v2-boundary-more {
+  margin: 9px 0 0;
+  color: #8f8f88;
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .workflow-v2-summary-assistant {
@@ -822,6 +912,212 @@ body:not(.workflow-v2-sidebar-expanded) .workflow-v2-side-footer > small {
   color: #fff;
 }
 
+.workflow-v2-boundary-confirm-overlay {
+  position: fixed;
+  z-index: 10045;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(18, 18, 17, 0.46);
+  backdrop-filter: blur(5px);
+}
+
+.workflow-v2-boundary-confirm {
+  width: min(860px, 100%);
+  max-height: min(760px, calc(100vh - 56px));
+  overflow: auto;
+  border: 1px solid #dfdfda;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 28px 86px rgba(0, 0, 0, 0.18);
+}
+
+.workflow-v2-boundary-confirm > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 22px 0;
+}
+
+.workflow-v2-boundary-confirm > header span {
+  color: #9a9a94;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.workflow-v2-boundary-confirm > header button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #777771;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workflow-v2-boundary-confirm-title {
+  padding: 10px 22px 18px;
+  border-bottom: 1px solid #ededeb;
+}
+
+.workflow-v2-boundary-confirm-title h2 {
+  margin: 0;
+  color: #171717;
+  font-size: 22px;
+  font-weight: 720;
+  line-height: 1.3;
+}
+
+.workflow-v2-boundary-confirm-title p {
+  margin: 8px 0 0;
+  color: #686862;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.workflow-v2-boundary-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 16px 22px 6px;
+}
+
+.workflow-v2-boundary-stats div {
+  display: grid;
+  gap: 5px;
+  min-height: 70px;
+  padding: 13px 14px;
+  border: 1px solid #e8e8e3;
+  border-radius: 12px;
+  background: #fafaf8;
+}
+
+.workflow-v2-boundary-stats span {
+  color: #85857f;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.workflow-v2-boundary-stats strong {
+  color: #171717;
+  font-size: 20px;
+  font-weight: 720;
+}
+
+.workflow-v2-boundary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px 22px 6px;
+}
+
+.workflow-v2-boundary-grid section {
+  min-height: 170px;
+  padding: 15px;
+  border: 1px solid #e8e8e3;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.workflow-v2-boundary-grid section.is-blocking {
+  border-color: #e8c7b8;
+  background: #fff9f6;
+}
+
+.workflow-v2-boundary-grid h3 {
+  margin: 0 0 10px;
+  color: #272724;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workflow-v2-boundary-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-v2-boundary-list li {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.42fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 9px 0;
+  border-top: 1px solid #f0f0ed;
+}
+
+.workflow-v2-boundary-list li:first-child {
+  border-top: 0;
+}
+
+.workflow-v2-boundary-list span {
+  color: #85857f;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.workflow-v2-boundary-list strong {
+  color: #333330;
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.55;
+}
+
+.workflow-v2-boundary-empty,
+.workflow-v2-boundary-more {
+  margin: 0;
+  color: #aaa9a3;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.workflow-v2-boundary-more {
+  margin-top: 9px;
+}
+
+.workflow-v2-boundary-confirm footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 16px 22px 20px;
+  border-top: 1px solid #ededeb;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+}
+
+.workflow-v2-boundary-confirm footer button {
+  min-height: 40px;
+  padding: 0 15px;
+  border: 1px solid #deded9;
+  border-radius: 10px;
+  background: #fff;
+  color: #555550;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workflow-v2-boundary-confirm footer button[data-action="continue"] {
+  border-color: #171717;
+  background: #171717;
+  color: #fff;
+}
+
+.workflow-v2-boundary-confirm footer button[data-action="estimate"] {
+  background: #f7f7f4;
+  color: #333330;
+}
+
 .workflow-v2-toast {
   position: fixed;
   z-index: 10060;
@@ -949,5 +1245,18 @@ body:not(.workflow-v2-sidebar-expanded) .workflow-v2-side-footer > small {
 
   .workflow-v2-actionbar-actions {
     overflow-x: auto;
+  }
+
+  .workflow-v2-boundary-confirm-overlay {
+    padding: 12px;
+  }
+
+  .workflow-v2-boundary-stats,
+  .workflow-v2-boundary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .workflow-v2-boundary-confirm footer {
+    flex-wrap: wrap;
   }
 }

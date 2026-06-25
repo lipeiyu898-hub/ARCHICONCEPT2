@@ -216,8 +216,15 @@ const renderMessages = () => {
   if (!state.messages.length) {
     list.innerHTML = `
       <div class="archi-assistant-empty">
+        <h2>Hi，我是 ArChi 小助手</h2>
+        <p>我可以帮你理解页面内容，解答填写疑问，<br />也能提供建筑设计的专业建议。</p>
         <div class="archi-assistant-guide" aria-label="使用指引">
-          <span>可以问页面怎么填、功能面积怎么拆、场地红线怎么用。AI 只提供建议，不会直接修改表单。</span>
+          <strong>使用指引</strong>
+          <ul>
+            <li><span class="archi-guide-icon is-form" aria-hidden="true"></span>帮你填写表单内容</li>
+            <li><span class="archi-guide-icon is-chart" aria-hidden="true"></span>解释规划指标含义</li>
+            <li><span class="archi-guide-icon is-light" aria-hidden="true"></span>提供下一步行动建议</li>
+          </ul>
         </div>
       </div>
     `;
@@ -310,13 +317,16 @@ const renderDialog = () => {
         ${quickPrompts
           .map(
             (prompt) =>
-              `<button type="button" data-prompt="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`
+              `<button type="button" data-prompt="${escapeHtml(prompt)}"><span>${escapeHtml(prompt)}</span><i aria-hidden="true">›</i></button>`
           )
           .join("")}
       </div>
       <form class="archi-assistant-form">
         <button type="button" class="archi-assistant-attach" aria-label="附件占位" tabindex="-1">
-          <span aria-hidden="true">⌘</span>
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M8 12.8l5.9-5.9a3 3 0 114.2 4.2l-7.4 7.4a4.5 4.5 0 01-6.4-6.4l7.8-7.8" />
+            <path d="M15.5 9.5l-7.2 7.2a1.8 1.8 0 11-2.6-2.6l6.6-6.6" />
+          </svg>
         </button>
         <textarea rows="1" maxlength="2000" placeholder="请输入你的问题..."></textarea>
         <button type="submit" aria-label="发送"><span aria-hidden="true">↑</span></button>
