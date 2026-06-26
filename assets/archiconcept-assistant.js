@@ -3,13 +3,15 @@ const FLOAT_POSITION_KEY = "archiconcept-ai-float-position";
 const IP_IMAGE_SRC = "/images/assistant-ip.png";
 const LAY_IP_IMAGE_SRC = "/images/assistant-ip-lay.png";
 const LAY_HOVER_IP_IMAGE_SRC = "/images/assistant-ip-lay2.png";
+const LAY_MODAL_IMAGE_SRC = "/images/assistant-ip-lay3.png";
+const ASSISTANT_AVATAR_SRC = "/images/assistant-ip-laugh.png";
 const MAX_HISTORY = 8;
 
-const quickPrompts = [
-  "这个页面我该先填什么？",
-  "功能面积表怎么拆？",
-  "场地红线有什么作用？",
-  "概念生成前要确认哪些条件？"
+const quickPromptGroups = [
+  ["这个页面我该先填什么？", "功能面积表怎么拆？", "场地红线有什么作用？"],
+  ["容积率怎么理解？", "建筑限高影响什么？", "任务书要提取哪些信息？"],
+  ["项目性质怎么选择？", "用地面积怎么填写？", "概念生成前要确认什么？"],
+  ["设计说明该怎么写？", "哪些条件会影响方案？", "我可以先跳过哪些字段？"]
 ];
 
 const introPrompts = [
@@ -17,6 +19,23 @@ const introPrompts = [
   { label: "解释这个字段", prompt: "请解释当前页面里最容易填错的字段。" },
   { label: "建筑知识问答", prompt: "建筑前期设计一般需要先确认哪些条件？" },
   { label: "打开 AI 助手", prompt: "" }
+];
+
+const abilityPrompts = [
+  { title: "解读项目内容", text: "快速理解图纸、任务书与设计要求", prompt: "请帮我解读当前项目内容。" },
+  { title: "提供设计建议", text: "分析场地、功能与规范，给出建议", prompt: "请基于当前页面提供设计建议。" },
+  { title: "规范 / 指标查询", text: "查询建筑规范、指标与行业标准", prompt: "请帮我查询相关规范和指标。" }
+];
+
+const recommendedPrompts = [
+  {
+    title: "这个项目的设计要点是什么？",
+    text: "结合项目条件，梳理优先关注的场地、功能与指标问题。"
+  },
+  {
+    title: "容积率 2.0 的建筑密度是多少？",
+    text: "解释常见规划指标之间的关系，并提示需要补充的条件。"
+  }
 ];
 
 const LAUNCHER_IDLE_PROMPT = ".....";
@@ -39,7 +58,8 @@ const state = {
   launcherHoldTimer: null,
   launcherClickTimer: null,
   launcherDrag: null,
-  launcherSuppressClick: false
+  launcherSuppressClick: false,
+  quickPromptGroupIndex: 0
 };
 
 const escapeHtml = (value) =>
@@ -48,6 +68,55 @@ const escapeHtml = (value) =>
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+
+const getCurrentUser = () => {
+  const candidates = [
+    window.ARCHICONCEPT_USER,
+    window.ARCHICONCEPT_CURRENT_USER,
+    window.currentUser,
+    window.user
+  ];
+  for (const user of candidates) {
+    if (user && typeof user === "object") return user;
+  }
+  for (const key of ["archiconcept-user", "archiconcept_current_user", "user", "currentUser"]) {
+    try {
+      const user = JSON.parse(window.localStorage.getItem(key) || "null");
+      if (user && typeof user === "object") return user;
+    } catch {}
+  }
+  return {};
+};
+
+const getUserAvatarUrl = () => {
+  const user = getCurrentUser();
+  return (
+    user.avatarUrl ||
+    user.avatar ||
+    user.photoURL ||
+    user.photoUrl ||
+    user.profileImage ||
+    user.profileImageUrl ||
+    ""
+  );
+};
+
+const getUserInitial = () => {
+  const user = getCurrentUser();
+  const name = user.name || user.displayName || user.nickname || user.username || "U";
+  return String(name).trim().slice(0, 1).toUpperCase() || "U";
+};
+
+const renderUserAvatar = () => {
+  const avatarUrl = getUserAvatarUrl();
+  if (avatarUrl) {
+    return `<img class="archi-assistant-avatar" src="${escapeHtml(avatarUrl)}" alt="" aria-hidden="true" />`;
+  }
+  return `<span class="archi-assistant-avatar is-default" aria-hidden="true">${escapeHtml(getUserInitial())}</span>`;
+};
+
+const renderAssistantAvatar = () =>
+  `<img class="archi-assistant-avatar" src="${ASSISTANT_AVATAR_SRC}" alt="" aria-hidden="true" />`;
 
 const isElementVisible = (element) => {
   if (!element) return false;
@@ -390,7 +459,7 @@ const renderIntro = () => {
       <img src="${IP_IMAGE_SRC}" alt="" aria-hidden="true" />
     </div>
     <div class="archi-assistant-intro-copy">
-      <p>Hi，我是 ArChi 小助手。你可以问我怎么填写当前页面，也可以问建筑前期问题。</p>
+      <p>Hi，我是 ArChi 小建。你可以问我怎么填写当前页面，也可以问建筑前期问题。</p>
     </div>
     <div class="archi-assistant-intro-actions">
       ${introPrompts
@@ -426,34 +495,53 @@ const renderMessages = () => {
   const list = state.dialog?.querySelector(".archi-assistant-messages");
   if (!list) return;
 
-  if (!state.messages.length) {
-    list.innerHTML = `
-      <div class="archi-assistant-empty">
-        <h2>Hi，我是 ArChi 小助手</h2>
-        <p>我可以帮你理解页面内容，解答填写疑问，<br />也能提供建筑设计的专业建议。</p>
-        <div class="archi-assistant-guide" aria-label="使用指引">
-          <strong>使用指引</strong>
-          <ul>
-            <li><span class="archi-guide-icon is-form" aria-hidden="true"></span>帮你填写表单内容</li>
-            <li><span class="archi-guide-icon is-chart" aria-hidden="true"></span>解释规划指标含义</li>
-            <li><span class="archi-guide-icon is-light" aria-hidden="true"></span>提供下一步行动建议</li>
-          </ul>
-        </div>
-      </div>
-    `;
+  const messages = state.sending
+    ? [...state.messages, { role: "assistant", loading: true, content: "" }]
+    : state.messages;
+
+  if (!messages.length) {
+    list.innerHTML = "";
+    state.dialog?.classList.remove("has-chat");
     return;
   }
 
-  list.innerHTML = state.messages
+  state.dialog?.classList.add("has-chat");
+  list.innerHTML = messages
     .map(
       (message) => `
-        <article class="archi-assistant-message is-${message.role}">
-          <div>${escapeHtml(message.content).replaceAll("\n", "<br>")}</div>
+        <article class="archi-assistant-message is-${message.role}${message.loading ? " is-loading" : ""}">
+          ${message.role === "assistant" ? renderAssistantAvatar() : ""}
+          <div>${
+            message.loading
+              ? '<span class="archi-assistant-typing" aria-label="正在思考"><i></i><i></i><i></i></span>'
+              : escapeHtml(message.content).replaceAll("\n", "<br>")
+          }</div>
+          ${message.role === "user" ? renderUserAvatar() : ""}
         </article>
       `
     )
     .join("");
   list.scrollTop = list.scrollHeight;
+};
+
+const renderQuickPrompts = () => {
+  const prompts = quickPromptGroups[state.quickPromptGroupIndex];
+  return `
+    ${prompts
+      .map(
+        (prompt) =>
+          `<button type="button" data-prompt="${escapeHtml(prompt)}"><span>${escapeHtml(prompt)}</span><i aria-hidden="true">›</i></button>`
+      )
+      .join("")}
+    <button type="button" data-quick-refresh="true"><span>换一批问题看看</span><i aria-hidden="true">↻</i></button>
+  `;
+};
+
+const rotateQuickPrompts = () => {
+  state.quickPromptGroupIndex =
+    (state.quickPromptGroupIndex + 1) % quickPromptGroups.length;
+  const container = state.dialog?.querySelector(".archi-assistant-bottom-prompts");
+  if (container) container.innerHTML = renderQuickPrompts();
 };
 
 const setSending = (sending) => {
@@ -475,8 +563,8 @@ const submitMessage = async (rawMessage) => {
   if (!content || state.sending) return;
 
   state.messages.push({ role: "user", content });
-  renderMessages();
   setSending(true);
+  renderMessages();
 
   try {
     const response = await fetch("/api/assistant-chat", {
@@ -520,36 +608,72 @@ const renderDialog = () => {
   dialog.setAttribute("aria-label", "ARCHICONCEPT AI 助手");
   dialog.innerHTML = `
     <div class="archi-assistant-dialog-panel">
-      <img class="archi-assistant-lay-ip" src="${LAY_IP_IMAGE_SRC}" alt="" aria-hidden="true" />
-      <header>
-        <button type="button" class="archi-assistant-drag" aria-label="AI 助手面板"></button>
-        <button type="button" class="archi-assistant-close" aria-label="关闭 AI 助手">×</button>
-      </header>
-      <div class="archi-assistant-messages"></div>
-      <div class="archi-assistant-bottom-prompts" aria-label="快捷问题">
-        ${quickPrompts
-          .map(
-            (prompt) =>
-              `<button type="button" data-prompt="${escapeHtml(prompt)}"><span>${escapeHtml(prompt)}</span><i aria-hidden="true">›</i></button>`
-          )
-          .join("")}
-      </div>
-      <form class="archi-assistant-form">
-        <button type="button" class="archi-assistant-attach" aria-label="附件占位" tabindex="-1">
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M8 12.8l5.9-5.9a3 3 0 114.2 4.2l-7.4 7.4a4.5 4.5 0 01-6.4-6.4l7.8-7.8" />
-            <path d="M15.5 9.5l-7.2 7.2a1.8 1.8 0 11-2.6-2.6l6.6-6.6" />
-          </svg>
-        </button>
-        <textarea rows="1" maxlength="2000" placeholder="请输入你的问题..."></textarea>
-        <button type="submit" aria-label="发送"><span aria-hidden="true">↑</span></button>
-      </form>
+      <aside class="archi-assistant-modal-left">
+        <div class="archi-assistant-brand"><strong>ARCHICONCEPT</strong><span>AI Assistant</span></div>
+        <div class="archi-assistant-visual" aria-label="AI 助手主视觉">
+          <img src="${LAY_MODAL_IMAGE_SRC}" alt="" aria-hidden="true" />
+        </div>
+        <div class="archi-assistant-left-copy">
+          <h2>Hi，我是 ArChi 小建</h2>
+          <p>专为建筑师和设计团队打造的智能助手，可以帮你理解项目内容、解答疑问，并提供设计建议与灵感。</p>
+        </div>
+        <div class="archi-assistant-capabilities" aria-label="AI 助手能力入口">
+          ${abilityPrompts
+            .map(
+              (item) => `
+                <button type="button" data-prompt="${escapeHtml(item.prompt)}">
+                  <span aria-hidden="true"></span>
+                  <strong>${escapeHtml(item.title)}</strong>
+                  <small>${escapeHtml(item.text)}</small>
+                  <i aria-hidden="true">›</i>
+                </button>`
+            )
+            .join("")}
+        </div>
+      </aside>
+      <section class="archi-assistant-modal-right">
+        <header class="archi-assistant-modal-header">
+          <button type="button" class="archi-assistant-history">↺ 对话历史</button>
+          <button type="button" class="archi-assistant-close" aria-label="关闭 AI 助手">×</button>
+        </header>
+        <div class="archi-assistant-right-scroll">
+          <div class="archi-assistant-right-title">
+            <h2>有什么可以帮你？</h2>
+            <p>你可以试着问我一些问题，或从下方建议中选择。</p>
+          </div>
+          <div class="archi-assistant-recommendations" aria-label="推荐问题">
+            ${recommendedPrompts
+              .map(
+                (item) => `
+                  <button type="button" data-prompt="${escapeHtml(item.title)}">
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <span>${escapeHtml(item.text)}</span>
+                  </button>`
+              )
+              .join("")}
+          </div>
+          <div class="archi-assistant-messages"></div>
+          <p class="archi-assistant-quick-title">你也可以试试这些问题</p>
+          <div class="archi-assistant-bottom-prompts" aria-label="快捷问题">
+            ${renderQuickPrompts()}
+          </div>
+        </div>
+        <form class="archi-assistant-form">
+          <button type="button" class="archi-assistant-attach" aria-label="附件占位" tabindex="-1">⌁</button>
+          <textarea rows="1" maxlength="2000" placeholder="输入你的问题，按 Enter 发送"></textarea>
+          <button type="submit" aria-label="发送"><span aria-hidden="true">↑</span></button>
+        </form>
+      </section>
     </div>
   `;
 
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog || event.target.closest(".archi-assistant-close")) {
       closeAssistant();
+      return;
+    }
+    if (event.target.closest("[data-quick-refresh]")) {
+      rotateQuickPrompts();
       return;
     }
     const promptButton = event.target.closest("[data-prompt]");

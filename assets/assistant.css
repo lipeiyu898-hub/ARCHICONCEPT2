@@ -260,270 +260,376 @@
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 88px 28px 34px;
-  background: rgba(255, 255, 255, 0.74);
+  padding: 48px 32px;
+  overflow: hidden;
+  background: rgba(246, 246, 243, 0.72);
   pointer-events: auto;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .archi-assistant-dialog-panel {
   position: relative;
   display: grid;
-  grid-template-rows: 42px minmax(0, 1fr) auto auto;
-  width: min(532px, calc(100vw - 48px));
-  height: min(724px, calc(100dvh - 118px));
-  min-height: 620px;
-  padding: 0 30px 27px;
+  grid-template-columns: minmax(320px, 40%) minmax(460px, 60%);
+  width: min(1080px, calc(100vw - 64px));
+  height: min(620px, calc(100dvh - 96px));
+  max-height: calc(100dvh - 96px);
+  min-height: 0;
+  padding: 0;
   border: 1px solid var(--archi-assistant-line);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.965);
+  background: rgba(255, 255, 255, 0.97);
   box-shadow:
-    0 28px 90px rgba(28, 28, 25, 0.12),
+    0 30px 90px rgba(25, 25, 22, 0.14),
     0 1px 0 rgba(255, 255, 255, 0.82) inset;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  overflow: visible;
-}
-
-.archi-assistant-lay-ip {
-  position: absolute;
-  z-index: 2;
-  top: -66px;
-  left: 50%;
-  width: 144px;
-  max-width: none;
-  height: auto;
-  pointer-events: none;
-  user-select: none;
-  filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.13));
-  transform: translateX(-50%);
-}
-
-.archi-assistant-dialog-panel > header {
-  position: relative;
-  right: auto;
-  top: auto;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 13px;
-  margin-right: -15px;
-  padding: 18px 0 0;
-}
-
-.archi-assistant-drag {
-  width: 21px;
-  height: 21px;
-  border: 0;
-  background:
-    radial-gradient(circle, #8e8e87 1.4px, transparent 1.9px) 0 0 / 6.5px 6.5px;
-  opacity: 0.78;
+  overflow: hidden;
 }
 
 .archi-assistant-close {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  font-size: 28px;
-  line-height: 1;
-}
-
-.archi-assistant-messages {
-  order: 1;
-  min-height: 0;
-  padding: 0 0 18px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.archi-assistant-messages:has(.archi-assistant-empty) {
-  overflow: visible;
-  scrollbar-width: none;
-}
-
-.archi-assistant-messages:has(.archi-assistant-empty)::-webkit-scrollbar {
-  display: none;
-}
-
-.archi-assistant-empty {
   display: grid;
-  justify-items: center;
-  align-content: start;
-  min-height: 100%;
-  padding: 40px 0 16px;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #77776f;
+  font-size: 30px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.archi-assistant-modal-left {
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  gap: 13px;
+  min-width: 0;
+  min-height: 0;
+  padding: 26px 30px 24px;
+  overflow: hidden;
+  border-right: 1px solid #eeeeea;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(249, 249, 246, 0.97));
+}
+
+.archi-assistant-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: #111;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+.archi-assistant-brand strong {
+  font-weight: 720;
+}
+
+.archi-assistant-brand span {
+  color: #8a8a83;
+  font-size: 12px;
+  font-weight: 520;
+}
+
+.archi-assistant-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.archi-assistant-visual img {
+  position: relative;
+  z-index: 1;
+  width: min(286px, 90%);
+  height: auto;
+  object-fit: contain;
+  filter: none;
+}
+
+.archi-assistant-left-copy {
   text-align: center;
 }
 
-.archi-assistant-mark {
+.archi-assistant-left-copy h2,
+.archi-assistant-right-title h2 {
+  margin: 0;
+  color: #181818;
+  font-size: 23px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.archi-assistant-left-copy p,
+.archi-assistant-right-title p {
+  margin: 8px auto 0;
+  color: #74746d;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.archi-assistant-left-copy p {
+  max-width: 320px;
+}
+
+.archi-assistant-capabilities {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.archi-assistant-capabilities button {
   position: relative;
   display: grid;
-  place-items: center;
-  width: 72px;
-  height: 72px;
-  margin-bottom: 38px;
-  border-radius: 18px;
-  background: #17191d;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 10px 24px rgba(0, 0, 0, 0.12);
-}
-
-.archi-assistant-mark span,
-.archi-assistant-mark::before,
-.archi-assistant-mark::after {
-  position: absolute;
-  content: "";
-  border-radius: 999px;
-  background: #fff;
-}
-
-.archi-assistant-mark span {
-  width: 36px;
-  height: 36px;
-  clip-path: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%);
-  opacity: 0.9;
-}
-
-.archi-assistant-empty h2 {
-  display: block;
-  margin: 0 0 17px;
-  color: #111;
-  font-size: 25px;
-  font-weight: 500;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-}
-
-.archi-assistant-empty p {
-  display: block;
-  max-width: 410px;
-  margin: 0 auto;
-  color: #6d6d66;
-  font-size: 13.5px;
-  line-height: 1.75;
-}
-
-.archi-assistant-guide {
-  display: block;
-  width: min(416px, 100%);
-  margin: 28px auto 0;
-  padding: 18px 21px 20px;
-  border: 1px solid #e4e4df;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  text-align: left;
-}
-
-.archi-assistant-guide strong {
-  display: block;
-  margin-bottom: 17px;
-  color: #181818;
-  font-size: 14px;
-  font-weight: 680;
-}
-
-.archi-assistant-guide ul {
-  display: grid;
-  gap: 19px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.archi-assistant-guide li {
-  display: flex;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
   align-items: center;
-  gap: 16px;
-  color: #4c4c47;
-  font-size: 14px;
+  min-height: 54px;
+  padding: 9px 12px;
+  border: 1px solid #e8e8e4;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #1e1e1c;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.archi-assistant-capabilities button:hover,
+.archi-assistant-recommendations button:hover,
+.archi-assistant-bottom-prompts button:hover {
+  border-color: #d7d7d1;
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.archi-assistant-capabilities button > span {
+  grid-row: 1 / 3;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background:
+    linear-gradient(#111, #111) 50% 50% / 12px 1.5px no-repeat,
+    linear-gradient(#111, #111) 50% 50% / 1.5px 12px no-repeat,
+    #f1f1ee;
+}
+
+.archi-assistant-capabilities strong {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+.archi-assistant-capabilities small {
+  color: #777770;
+  font-size: 11.5px;
   line-height: 1.4;
 }
 
-.archi-guide-icon {
-  position: relative;
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 23px;
-  height: 23px;
-  color: #171717;
+.archi-assistant-capabilities i {
+  grid-column: 3;
+  grid-row: 1 / 3;
+  color: #6d6d66;
+  font-style: normal;
+  font-size: 24px;
 }
 
-.archi-guide-icon::before,
-.archi-guide-icon::after {
+.archi-assistant-disclaimer {
+  margin: 0;
+  color: #999991;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.archi-assistant-modal-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px 32px 28px;
+  overflow: hidden;
+}
+
+.archi-assistant-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.archi-assistant-history {
+  border: 0;
+  background: transparent;
+  color: #343430;
+  font-size: 14px;
+  font-weight: 520;
+  cursor: pointer;
+}
+
+.archi-assistant-right-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 24px 4px 14px;
+  overflow: visible;
+}
+
+.archi-assistant-right-title {
+  margin-bottom: 17px;
+}
+
+.archi-assistant-right-title h2 {
+  font-size: 25px;
+}
+
+.archi-assistant-right-title p {
+  margin-left: 0;
+}
+
+.archi-assistant-recommendations {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+
+.archi-assistant-recommendations button {
+  position: relative;
+  min-height: 74px;
+  padding: 12px 17px;
+  overflow: hidden;
+  border: 1px solid #e6e6e2;
+  border-radius: 14px;
+  background:
+    linear-gradient(100deg, rgba(255, 255, 255, 0.98), rgba(250, 250, 247, 0.94)),
+    repeating-linear-gradient(90deg, transparent 0 20px, rgba(220, 220, 214, 0.18) 20px 21px);
+  color: #20201d;
+  box-shadow: 0 10px 26px rgba(24, 24, 20, 0.035);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.archi-assistant-recommendations button::before,
+.archi-assistant-recommendations button::after {
   position: absolute;
   content: "";
-  box-sizing: border-box;
+  pointer-events: none;
 }
 
-.archi-guide-icon.is-form::before {
-  width: 15px;
-  height: 18px;
-  border: 1.6px solid #171717;
-  border-radius: 3px;
-}
-
-.archi-guide-icon.is-form::after {
-  width: 8px;
-  height: 5px;
-  border-top: 1.6px solid #171717;
-  border-bottom: 1.6px solid #171717;
-  transform: translateY(2px);
-}
-
-.archi-guide-icon.is-chart::before {
-  width: 17px;
-  height: 17px;
-  border: 1.6px solid #171717;
-  border-radius: 3px;
-}
-
-.archi-guide-icon.is-chart::after {
-  width: 11px;
-  height: 11px;
+.archi-assistant-recommendations button::before {
+  right: 18px;
+  bottom: 14px;
+  width: 102px;
+  height: 54px;
+  opacity: 0.34;
   background:
-    linear-gradient(#171717, #171717) 0 100% / 2px 6px no-repeat,
-    linear-gradient(#171717, #171717) 50% 100% / 2px 10px no-repeat,
-    linear-gradient(#171717, #171717) 100% 100% / 2px 4px no-repeat;
+    linear-gradient(135deg, transparent 0 32%, rgba(172, 172, 164, 0.32) 32% 33%, transparent 33%),
+    linear-gradient(90deg, transparent 0 22%, rgba(172, 172, 164, 0.26) 22% 23%, transparent 23% 45%, rgba(172, 172, 164, 0.22) 45% 46%, transparent 46% 68%, rgba(172, 172, 164, 0.2) 68% 69%, transparent 69%),
+    linear-gradient(0deg, rgba(172, 172, 164, 0.22) 0 1px, transparent 1px 38%, rgba(172, 172, 164, 0.18) 38% 39%, transparent 39% 72%, rgba(172, 172, 164, 0.16) 72% 73%, transparent 73%);
 }
 
-.archi-guide-icon.is-light::before {
-  width: 14px;
-  height: 14px;
-  border: 1.6px solid #171717;
-  border-radius: 999px 999px 7px 7px;
-  transform: translateY(-2px);
+.archi-assistant-recommendations button::after {
+  right: 116px;
+  bottom: 17px;
+  width: 48px;
+  height: 36px;
+  opacity: 0.22;
+  border: 1px solid rgba(172, 172, 164, 0.42);
+  border-bottom-color: rgba(150, 150, 142, 0.48);
+  transform: skewX(-14deg);
 }
 
-.archi-guide-icon.is-light::after {
-  width: 9px;
-  height: 5px;
-  border-top: 1.6px solid #171717;
-  border-bottom: 1.6px solid #171717;
-  transform: translateY(8px);
-  line-height: 1;
+.archi-assistant-recommendations strong {
+  position: relative;
+  z-index: 1;
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
 }
 
-.archi-assistant-prompt-grid {
+.archi-assistant-recommendations span {
+  position: relative;
+  z-index: 1;
+  display: block;
+  max-width: 460px;
+  color: #74746d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.archi-assistant-messages {
+  display: grid;
+  gap: 10px;
+  max-height: none;
+  min-height: 0;
+  margin-bottom: 14px;
+  overflow: visible;
+}
+
+.archi-assistant-messages:empty {
+  display: none;
+}
+
+.archi-assistant-dialog.has-chat .archi-assistant-recommendations,
+.archi-assistant-dialog.has-chat .archi-assistant-quick-title,
+.archi-assistant-dialog.has-chat .archi-assistant-bottom-prompts {
+  display: none;
+}
+
+.archi-assistant-dialog.has-chat .archi-assistant-right-scroll {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 34px;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.archi-assistant-prompt-grid button {
-  padding: 12px 16px;
+.archi-assistant-dialog.has-chat .archi-assistant-messages {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 0;
+  padding: 0 4px 18px 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d8d8d2 transparent;
+}
+
+.archi-assistant-dialog.has-chat .archi-assistant-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.archi-assistant-dialog.has-chat .archi-assistant-messages::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d8d8d2;
+}
+
+.archi-assistant-quick-title {
+  margin: 0 0 10px;
+  color: #343430;
+  font-size: 14px;
+  font-weight: 560;
 }
 
 .archi-assistant-bottom-prompts {
-  order: 3;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 14px;
-  margin: 15px 0 7px;
+  gap: 8px 10px;
+  margin: 0;
 }
 
 .archi-assistant-bottom-prompts button {
@@ -531,11 +637,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 45px;
-  padding: 12px 12px 12px 15px;
-  border-color: rgba(224, 224, 219, 0.96);
+  min-height: 38px;
+  padding: 8px 12px;
+  border-color: rgba(228, 228, 223, 0.98);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.78);
   color: #181818;
   box-shadow: none;
   font-size: 13px;
@@ -560,16 +666,36 @@
 
 .archi-assistant-message {
   display: flex;
-  margin: 0 0 14px;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
 }
 
 .archi-assistant-message > div {
-  max-width: min(84%, 520px);
+  max-width: min(78%, 480px);
   padding: 12px 14px;
   border-radius: 14px;
   color: #242422;
   font-size: 14px;
   line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.archi-assistant-avatar {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  object-fit: cover;
+  background: #f0f0ec;
+}
+
+.archi-assistant-avatar.is-default {
+  display: grid;
+  place-items: center;
+  color: #55554f;
+  font-size: 12px;
+  font-weight: 680;
 }
 
 .archi-assistant-message.is-user {
@@ -580,6 +706,11 @@
   border: 1px solid #111;
   background: #111;
   color: #fff;
+  order: 1;
+}
+
+.archi-assistant-message.is-user .archi-assistant-avatar {
+  order: 2;
 }
 
 .archi-assistant-message.is-assistant > div {
@@ -587,48 +718,68 @@
   background: #f8f8f5;
 }
 
+.archi-assistant-message.is-loading > div {
+  min-width: 54px;
+  padding: 12px 14px;
+}
+
+.archi-assistant-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 12px;
+}
+
+.archi-assistant-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #8f8f88;
+  animation: archiAssistantTyping 880ms ease-in-out infinite;
+}
+
+.archi-assistant-typing i:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.archi-assistant-typing i:nth-child(3) {
+  animation-delay: 240ms;
+}
+
 .archi-assistant-form {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 12px;
+  flex: 0 0 auto;
+  gap: 10px;
   align-items: end;
-  order: 2;
   margin: 0;
-  padding: 15px 13px 14px;
-  border: 1px solid rgba(222, 222, 217, 0.98);
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.92) inset;
+  padding: 16px 14px;
+  border: 1px solid rgba(214, 214, 208, 0.98);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 12px 30px rgba(24, 24, 20, 0.045),
+    0 1px 0 rgba(255, 255, 255, 0.96) inset;
   backdrop-filter: none;
 }
 
 .archi-assistant-attach {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border: 1px solid #e4e4df;
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.92);
   color: #20201d;
-  font-size: 18px;
+  font-size: 16px;
   cursor: default;
-}
-
-.archi-assistant-attach svg {
-  width: 21px;
-  height: 21px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .archi-assistant-form textarea {
   width: 100%;
-  min-height: 104px;
-  max-height: 136px;
+  min-height: 48px;
+  max-height: 72px;
   border: 0;
   outline: 0;
   resize: none;
@@ -644,13 +795,13 @@
 .archi-assistant-form button[type="submit"] {
   align-self: end;
   min-width: 0;
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
   border: 0;
   border-radius: 999px;
   background: #111;
   color: #fff;
-  font-size: 30px;
+  font-size: 23px;
   font-weight: 560;
   cursor: pointer;
 }
@@ -763,7 +914,9 @@
   .archi-assistant-launcher,
   .archi-assistant-intro-ip img,
   .archi-assistant-intro-actions button,
-  .archi-assistant-prompt-grid button {
+  .archi-assistant-capabilities button,
+  .archi-assistant-recommendations button,
+  .archi-assistant-bottom-prompts button {
     animation: none;
     transition: none;
   }
@@ -788,6 +941,29 @@
   .archi-assistant-intro-actions {
     grid-column: 2 / 4;
     justify-content: flex-start;
+  }
+
+  .archi-assistant-dialog {
+    padding: 18px;
+  }
+
+  .archi-assistant-dialog-panel {
+    grid-template-columns: 1fr;
+    width: min(620px, calc(100vw - 36px));
+    height: min(820px, calc(100dvh - 36px));
+    max-height: calc(100dvh - 36px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .archi-assistant-modal-left {
+    grid-template-rows: auto auto auto auto auto;
+    border-right: 0;
+    border-bottom: 1px solid #eeeeea;
+  }
+
+  .archi-assistant-modal-right {
+    min-height: 0;
   }
 }
 
@@ -819,43 +995,32 @@
 
   .archi-assistant-dialog {
     place-items: center;
-    padding: 86px 14px 18px;
+    padding: 14px;
   }
 
   .archi-assistant-dialog-panel {
     width: 100%;
-    height: auto;
-    min-height: min(650px, calc(100vh - 112px));
-    padding: 0 18px 20px;
+    height: calc(100dvh - 28px);
+    max-height: calc(100dvh - 28px);
+    min-height: 0;
     border-radius: 18px;
   }
 
-  .archi-assistant-lay-ip {
-    top: -74px;
-    width: 140px;
+  .archi-assistant-modal-left,
+  .archi-assistant-modal-right {
+    padding: 22px 18px;
   }
 
-  .archi-assistant-messages {
-    max-height: 34vh;
-    padding: 0 0 8px;
+  .archi-assistant-visual {
+    min-height: 148px;
   }
 
-  .archi-assistant-empty {
-    padding-top: 28px;
+  .archi-assistant-right-scroll {
+    padding-top: 20px;
   }
 
-  .archi-assistant-empty h2 {
-    font-size: 22px;
-  }
-
-  .archi-assistant-empty p {
-    font-size: 15px;
-  }
-
-  .archi-assistant-guide {
-    margin-top: 24px;
-    margin-bottom: 8px;
-    padding: 16px;
+  .archi-assistant-recommendations button {
+    min-height: 70px;
   }
 
   .archi-assistant-bottom-prompts {
@@ -864,7 +1029,7 @@
   }
 
   .archi-assistant-bottom-prompts button {
-    min-height: 48px;
+    min-height: 40px;
     padding: 10px 14px;
     font-size: 14px;
   }
@@ -872,23 +1037,24 @@
   .archi-assistant-form {
     gap: 10px;
     margin: 0;
-    padding: 12px;
+    padding: 14px 12px;
     border-radius: 18px;
   }
 
   .archi-assistant-form textarea {
     font-size: 16px;
+    min-height: 46px;
   }
 
   .archi-assistant-attach {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
   }
 
   .archi-assistant-form button[type="submit"] {
-    width: 40px;
-    height: 40px;
-    font-size: 24px;
+    width: 38px;
+    height: 38px;
+    font-size: 22px;
   }
 }
 
