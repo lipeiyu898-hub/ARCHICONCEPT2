@@ -1,4 +1,3 @@
-const INTRO_STORAGE_KEY = "archiconcept_assistant_intro_closed_v2";
 const IP_IMAGE_SRC = "/images/assistant-ip.png";
 const LAY_IP_IMAGE_SRC = "/images/assistant-ip-lay.png";
 const MAX_HISTORY = 8;
@@ -26,6 +25,7 @@ const state = {
   open: false,
   sending: false
 };
+let introClosedForPageLoad = false;
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -109,17 +109,11 @@ const ensureRoot = () => {
 };
 
 const setIntroClosed = () => {
-  try {
-    window.localStorage.setItem(INTRO_STORAGE_KEY, "true");
-  } catch {}
+  introClosedForPageLoad = true;
 };
 
 const hasIntroClosed = () => {
-  try {
-    return window.localStorage.getItem(INTRO_STORAGE_KEY) === "true";
-  } catch {
-    return true;
-  }
+  return introClosedForPageLoad;
 };
 
 const removeIntro = ({ persist = false } = {}) => {

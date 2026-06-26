@@ -14,7 +14,7 @@ const WORKFLOW_V2_STEPS = Object.freeze([
     englishTitle: "Project Info",
     shortEnglishTitle: "PROJECT INFO",
     packageName: "boundaryAnchorPackage",
-    description: "录入项目基础信息、建设规模和任务书条件，形成后续设计的基础数据。",
+    description: "先确认项目身份、建设规模与任务书条件；下一步将结合场地位置和用地边界分析限制与可利用条件。",
     modules: ["项目基本信息", "建设规模", "设计说明", "任务书导入", "条件确认"]
   },
   {
@@ -382,27 +382,22 @@ const renderBoundaryAnchorSummary = (
       ? "先处理冲突和缺失项。暂时不确定的条件可以先用估算。"
       : "项目信息已建立，下一步会读取这些基础条件。";
   const metrics = [
+    ["项目名称", data.projectIdentity?.projectName || "未命名项目"],
+    ["项目类型", data.projectIdentity?.buildingType || "未填写"],
+    ["建设地点", data.projectIdentity?.location || "未填写"],
     ["用地面积", formatSquareMeter(controls.siteAreaM2)],
-    ["总建筑面积", formatSquareMeter(controls.grossFloorAreaM2)],
-    ["容积率", formatPlainValue(controls.floorAreaRatio)],
+    ["建筑面积", formatSquareMeter(controls.grossFloorAreaM2)],
     [
-      "功能面积",
-      getAreaProgramCount(data)
-        ? `${getAreaProgramCount(data)} 项`
-        : "未填写"
-    ]
-  ];
-  const pendingPreview = pendingBoundaryItems.slice(0, 3);
-  const summaryRows = [
-    ["已确认", `${confirmedBoundaryCount} / ${boundaryConstraints.length}`],
-    [
-      "待处理",
-      pendingBoundaryItems.length
-        ? `${pendingBoundaryItems.length} 项`
-        : "0 项"
+      "设计阶段",
+      document.querySelector('[data-step1-extra-field="designStage"]')?.value ||
+        "概念设计"
     ],
-    ["采用估算", `${summary.state.assumptionCount} 项`]
+    ["创建时间", "本次会话"],
+    ["最后更新", summary.packageData?.updatedAt ? "已更新" : "未保存"]
   ];
+  const progress = boundaryConstraints.length
+    ? Math.round((confirmedBoundaryCount / boundaryConstraints.length) * 100)
+    : 0;
 
   aside
     .querySelectorAll(":scope > .sticky, :scope > .assistant-bubble-merged-source")
@@ -411,75 +406,43 @@ const renderBoundaryAnchorSummary = (
     );
   panel.classList.add("workflow-v2-boundary-summary");
   panel.innerHTML = `
-    <div class="workflow-v2-summary-header">
-      <div>
-        <span>阶段状态</span>
-        <strong>${escapeHtml(summary.config.title)}</strong>
-      </div>
-      <span class="workflow-v2-status is-${summary.state.tone}">
-        ${escapeHtml(summary.state.label)}
-      </span>
-    </div>
-    <div class="workflow-v2-boundary-next">
-      <span>下一步状态</span>
-      <strong>${escapeHtml(nextTitle)}</strong>
-      <p>${escapeHtml(nextCopy)}</p>
-    </div>
-    <dl class="workflow-v2-summary-list">
-      ${summaryRows
-        .map(
-          ([label, value]) => `
-            <div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
-          `
-        )
-        .join("")}
-    </dl>
-    ${
-      pendingPreview.length
-        ? `<div class="workflow-v2-summary-section">
-      <div class="workflow-v2-summary-section-title">优先处理</div>
-      <div class="workflow-v2-boundary-pending-list">
-        ${pendingPreview
-          .map(
-            (item) => `
-              <div class="workflow-v2-boundary-pending-item is-${escapeHtml(item.statusCode)}">
-                <span>${escapeHtml(item.status)}</span>
-                <strong>${escapeHtml(item.label)}</strong>
-                <em>${escapeHtml(item.category)}</em>
-              </div>
-            `
-          )
-          .join("")}
-      </div>
-      ${
-        pendingBoundaryItems.length > pendingPreview.length
-          ? `<p class="workflow-v2-boundary-more">还有 ${pendingBoundaryItems.length - pendingPreview.length} 项在左侧列表中处理。</p>`
-          : ""
-      }
-    </div>`
-        : ""
-    }
-    <div class="workflow-v2-summary-section">
-      <div class="workflow-v2-summary-section-title">关键输入</div>
-      <div class="workflow-v2-summary-metrics">
+    <section class="workflow-v2-project-overview">
+      <header>
+        <h2>项目信息总览</h2>
+        <button type="button" data-action="step1-edit-summary">编辑</button>
+      </header>
+      <dl>
         ${metrics
           .map(
             ([label, value]) => `
-              <div>
-                <span>${escapeHtml(label)}</span>
-                <strong>${escapeHtml(value)}</strong>
-              </div>
+              <div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
             `
           )
           .join("")}
+      </dl>
+    </section>
+    <section class="workflow-v2-project-progress">
+      <header>
+        <h2>当前进度</h2>
+        <strong>${progress}%</strong>
+      </header>
+      <p>步骤 1 / 6 · 项目信息</p>
+      <div class="workflow-v2-project-progress-track">
+        <span style="width: ${Math.max(4, progress)}%"></span>
       </div>
-    </div>
+      <small>${escapeHtml(nextCopy)}</small>
+    </section>
     ${
       summary.state.stale
         ? `<div class="workflow-v2-stale-note">前序数据已变更，建议复核本阶段内容。</div>`
         : ""
     }
   `;
+  panel.querySelector('[data-action="step1-edit-summary"]')?.addEventListener("click", () => {
+    document
+      .querySelector("#step12-project-info-grid")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 };
 
 const LEGACY_WORKFLOW_LABELS = Object.freeze(
@@ -1159,6 +1122,19 @@ const getLegacyTopNav = () =>
     );
   });
 
+const markLegacyMarketingFooters = () => {
+  document.querySelectorAll("footer").forEach((footer) => {
+    const text = footer.textContent || "";
+    if (
+      !footer.closest(".workflow-v2-dialog") &&
+      !footer.classList.contains("workflow-v2-boundary-confirm-footer") &&
+      /PRIVACY POLICY|SYSTEM TERMS|ALL RIGHTS RESERVED/i.test(text)
+    ) {
+      footer.classList.add("workflow-v2-legacy-marketing-footer");
+    }
+  });
+};
+
 let workflowV2SidebarExpanded = false;
 
 const renderProductShell = (step) => {
@@ -1168,6 +1144,7 @@ const renderProductShell = (step) => {
     workflowV2SidebarExpanded
   );
   getLegacyTopNav()?.classList.add("workflow-v2-legacy-topnav");
+  markLegacyMarketingFooters();
 
   let topNav = document.querySelector(".workflow-v2-topnav");
   if (!topNav) {

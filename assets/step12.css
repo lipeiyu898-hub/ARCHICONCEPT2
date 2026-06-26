@@ -43,32 +43,186 @@
   display: none !important;
 }
 
+.workflow-v2-shell-active .workflow-v2-legacy-marketing-footer {
+  display: none !important;
+}
+
+.step12-boundary-page {
+  padding-bottom: 188px !important;
+}
+
+.step12-boundary-page .workflow-v2-stage-header {
+  display: none !important;
+}
+
+.step12-project-title-bar {
+  display: grid;
+  gap: 12px;
+  margin: 6px 0 34px;
+}
+
+.step12-project-title-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.step12-project-title-main input {
+  width: min(760px, 100%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #111;
+  font: inherit;
+  font-size: 32px;
+  font-weight: 760;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  outline: none;
+}
+
+.step12-project-title-main input:focus {
+  box-shadow: inset 0 -2px 0 #111;
+}
+
+.step12-project-title-main span {
+  color: #90908a;
+  font-size: 18px;
+}
+
+.step12-project-title-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  color: #8b8b85;
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.step12-boundary-page [data-workflow-v2-timeline="true"] {
+  margin-bottom: 28px !important;
+}
+
+.step12-boundary-page .workflow-v2-stage-header {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  align-items: start;
+  margin-bottom: 22px;
+  padding: 22px 24px;
+}
+
+.step12-boundary-page .workflow-v2-stage-copy > p {
+  max-width: 760px;
+}
+
+.step12-boundary-page .workflow-v2-module-strip {
+  display: none;
+}
+
 .step12-project-info-section {
+  position: relative;
   overflow: hidden;
+  padding-top: 28px !important;
+}
+
+.step12-hidden-legacy-field-grid {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+}
+
+.step12-project-form-header {
+  max-width: calc(100% - 290px);
+  margin-bottom: 0 !important;
+}
+
+.step12-project-form-badge {
+  display: none !important;
+}
+
+.step12-project-form-header h2,
+.step12-project-form-header h3 {
+  font-size: 18px !important;
+  line-height: 1.35 !important;
 }
 
 .step12-project-info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px 28px;
-  margin-top: 28px;
+  gap: 16px 28px;
+  margin-top: 24px;
 }
 
 .step12-project-info-field,
 .step12-project-extra-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
+}
+
+.step12-project-info-field[data-step1-field="name"] {
+  order: 1;
+}
+
+.step12-project-info-field[data-step1-field="type"] {
+  order: 2;
+}
+
+.step12-project-info-field[data-step1-field="location"] {
+  order: 3;
+}
+
+.step12-project-info-field[data-step1-field="area"] {
+  order: 4;
+}
+
+.step12-project-info-field[data-step1-field="gfa"] {
+  order: 5;
+}
+
+.step12-project-extra-designStage {
+  order: 6;
+}
+
+.step12-project-extra-projectDescription {
+  order: 7;
+}
+
+.step12-project-info-field > [data-step12-field-label],
+.step12-project-extra-field > span {
+  order: 0;
+  display: block;
+  margin: 0;
+  color: #4f4f4a;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  pointer-events: none;
 }
 
 .step12-project-info-field :is(input, select, textarea),
 .step12-project-extra-field :is(input, select, textarea) {
+  position: relative;
+  z-index: 2;
+  order: 1;
   width: 100%;
-  min-height: 54px;
+  min-height: 46px;
+  margin: 0;
+  padding: 0 15px;
   border: 1px solid #e5e5e5;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   color: #171717;
   font-size: 15px;
   line-height: 1.5;
+  pointer-events: auto;
   transition:
     border-color 160ms ease,
     box-shadow 160ms ease;
@@ -81,19 +235,8 @@
   outline: none;
 }
 
-.step12-project-extra-field {
-  display: grid;
-  gap: 10px;
-}
-
-.step12-project-extra-field > span {
-  color: #575757;
-  font-size: 13px;
-  font-weight: 700;
-}
-
 .step12-project-extra-field textarea {
-  min-height: 120px;
+  min-height: 78px;
   padding: 14px 16px;
   resize: vertical;
 }
@@ -103,45 +246,158 @@
 }
 
 .step12-project-actions {
+  position: absolute;
+  top: 24px;
+  right: 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  margin-top: 26px;
-  padding: 18px 20px;
+  gap: 12px;
+  margin-top: 0;
+  padding: 8px 10px 8px 12px;
   border: 1px solid #e8e8e8;
-  border-radius: 16px;
-  background: #fafafa;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.step12-boundary-page .workflow-v2-summary {
+  display: grid;
+  gap: 18px;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+}
+
+.workflow-v2-project-overview,
+.workflow-v2-project-progress {
+  padding: 22px;
+  border: 1px solid #e7e7e3;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.workflow-v2-project-overview header,
+.workflow-v2-project-progress header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.workflow-v2-project-overview h2,
+.workflow-v2-project-progress h2 {
+  margin: 0;
+  color: #151515;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.workflow-v2-project-overview button {
+  border: 0;
+  background: transparent;
+  color: #315fc9;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workflow-v2-project-overview dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.workflow-v2-project-overview dl > div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  align-items: baseline;
+}
+
+.workflow-v2-project-overview dt,
+.workflow-v2-project-overview dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.workflow-v2-project-overview dt {
+  color: #777771;
+  font-weight: 560;
+}
+
+.workflow-v2-project-overview dd {
+  color: #242422;
+  font-weight: 650;
+  word-break: break-word;
+}
+
+.workflow-v2-project-progress header {
+  margin-bottom: 14px;
+}
+
+.workflow-v2-project-progress header strong {
+  color: #151515;
+  font-size: 20px;
+  font-weight: 780;
+}
+
+.workflow-v2-project-progress p {
+  margin: 0 0 12px;
+  color: #555550;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.workflow-v2-project-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ececef;
+}
+
+.workflow-v2-project-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #315fc9;
+}
+
+.workflow-v2-project-progress small {
+  display: block;
+  margin-top: 12px;
+  color: #8a8a85;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .step12-project-actions strong {
   display: block;
   color: #111;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
 }
 
 .step12-project-actions p {
-  margin: 4px 0 0;
-  color: #8a8a8a;
-  font-size: 13px;
-  line-height: 1.6;
+  display: none;
 }
 
 .step12-project-action-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 6px;
 }
 
 .step12-secondary-action {
-  min-height: 40px;
-  padding: 0 16px;
+  min-height: 32px;
+  padding: 0 11px;
   border: 1px solid #dedede;
   border-radius: 10px;
   background: #fff;
   color: #111;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
