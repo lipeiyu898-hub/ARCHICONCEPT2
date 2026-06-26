@@ -272,6 +272,379 @@ const setLegacyFieldValue = (name, value) => {
   );
 };
 
+const STEP1_EXTRA_STORAGE_KEY = "archiconcept_step1_project_meta";
+
+const STEP1_FORM_FIELDS = Object.freeze({
+  name: {
+    label: "项目名称 / NAME",
+    placeholder: "例如：前海 AI 数据中心与市民活动地景复合建筑",
+    source: "brief"
+  },
+  type: {
+    label: "建筑类型 / TYPE",
+    placeholder: "请选择建筑类型",
+    source: "brief",
+    control: "select"
+  },
+  nature: {
+    label: "项目性质 / NATURE",
+    placeholder: "请选择项目性质",
+    source: "extra",
+    control: "select",
+    options: ["", "新建项目", "改造更新", "扩建项目", "临时建筑", "概念研究"]
+  },
+  phase: {
+    label: "项目阶段 / PHASE",
+    placeholder: "请选择项目阶段",
+    source: "extra",
+    control: "select",
+    options: ["", "概念设计", "方案设计", "投标 / 竞赛", "前期研究"]
+  },
+  location: {
+    label: "项目所在地 / LOCATION",
+    placeholder: "例如：深圳市前海深港湾公共空间节点",
+    source: "brief"
+  },
+  briefSource: {
+    label: "任务来源 / BRIEF SOURCE",
+    placeholder: "请选择任务来源",
+    source: "extra",
+    control: "select",
+    options: [
+      "",
+      "课程设计 / Course Project",
+      "竞赛项目 / Competition",
+      "真实委托 / Commission",
+      "研究课题 / Research",
+      "其他 / Other"
+    ]
+  },
+  area: {
+    label: "用地面积 / SITE AREA",
+    placeholder: "例如：2446、2.5ha 或 2.5公顷",
+    source: "brief"
+  },
+  gfa: {
+    label: "总建筑面积 / GFA",
+    placeholder: "例如：120,000 m²",
+    source: "brief"
+  },
+  far: {
+    label: "容积率 / FAR",
+    placeholder: "例如：2.4",
+    source: "brief"
+  },
+  height: {
+    label: "建筑限高 / HEIGHT LIMIT",
+    placeholder: "例如：45m",
+    source: "brief"
+  },
+  description: {
+    label: "设计说明 / DESCRIPTION",
+    placeholder:
+      "请简要说明你想做什么建筑、服务对象、场地背景、目标或任务书重点。",
+    source: "extra",
+    control: "textarea"
+  }
+});
+
+const STEP1_REQUIRED_KEYS = Object.freeze([
+  "name",
+  "type",
+  "nature",
+  "phase",
+  "location",
+  "briefSource",
+  "area",
+  "gfa"
+]);
+
+const readStepOneExtra = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STEP1_EXTRA_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const writeStepOneExtraValue = (key, value) => {
+  const next = { ...readStepOneExtra(), [key]: value };
+  localStorage.setItem(STEP1_EXTRA_STORAGE_KEY, JSON.stringify(next));
+};
+
+const getBriefField = (name) =>
+  document.querySelector(
+    `#id-section-a input[name="${name}"]:not([data-step1-proxy-field]), #id-section-a select[name="${name}"]:not([data-step1-proxy-field]), #id-section-a textarea[name="${name}"]:not([data-step1-proxy-field]), #id-section-b input[name="${name}"]:not([data-step1-proxy-field]), #id-section-b select[name="${name}"]:not([data-step1-proxy-field]), #id-section-b textarea[name="${name}"]:not([data-step1-proxy-field])`
+  );
+
+const readStepOneFieldValue = (key) => {
+  const config = STEP1_FORM_FIELDS[key];
+  if (!config) return "";
+  if (config.source === "extra") return readStepOneExtra()[key] || "";
+  return getBriefField(key)?.value || "";
+};
+
+const setBriefFieldValue = (key, value) => {
+  const field = getBriefField(key);
+  if (!field) return;
+  const prototype =
+    field instanceof HTMLSelectElement
+      ? HTMLSelectElement.prototype
+      : field instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  setter?.call(field, value);
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+  field.dispatchEvent(new Event("change", { bubbles: true }));
+};
+
+const cloneBriefOptions = (key, fallbackOptions = []) => {
+  const source = getBriefField(key);
+  const sourceOptions =
+    source instanceof HTMLSelectElement
+      ? [...source.options].map((option) => ({
+          value: option.value,
+          text: option.textContent || option.value
+        }))
+      : [];
+  const options = sourceOptions.length
+    ? sourceOptions
+    : fallbackOptions.map((item) => ({
+        value: item,
+        text: item || STEP1_FORM_FIELDS[key]?.placeholder || "请选择"
+      }));
+  if (options[0]?.value !== "") {
+    options.unshift({
+      value: "",
+      text: STEP1_FORM_FIELDS[key]?.placeholder || "请选择"
+    });
+  }
+  return options;
+};
+
+const createStepOneControl = (key) => {
+  const config = STEP1_FORM_FIELDS[key];
+  if (config.control === "select") {
+    const select = document.createElement("select");
+    select.innerHTML = cloneBriefOptions(key, config.options || [])
+      .map(
+        (option) =>
+          `<option value="${escapeHtml(option.value)}">${escapeHtml(option.text)}</option>`
+      )
+      .join("");
+    select.setAttribute(
+      config.source === "extra" ? "data-step1-extra-field" : "data-step1-proxy-field",
+      key
+    );
+    select.setAttribute("aria-label", config.label);
+    return select;
+  }
+  if (config.control === "textarea") {
+    const textarea = document.createElement("textarea");
+    textarea.setAttribute("placeholder", config.placeholder);
+    textarea.setAttribute("data-step1-extra-field", key);
+    textarea.setAttribute("aria-label", config.label);
+    return textarea;
+  }
+  const input = document.createElement("input");
+  input.type = "text";
+  input.setAttribute("placeholder", config.placeholder);
+  input.setAttribute("data-step1-proxy-field", key);
+  input.setAttribute("aria-label", config.label);
+  return input;
+};
+
+const createStepOneField = (key, wide = false) => {
+  const config = STEP1_FORM_FIELDS[key];
+  const field = document.createElement("label");
+  field.className = `step12-project-field${wide ? " is-wide" : ""}`;
+  field.dataset.step1Field = key;
+  if (key !== "description") {
+    field.innerHTML = `
+      <span>${escapeHtml(config.label)}${
+        STEP1_REQUIRED_KEYS.includes(key) ? " <em>*</em>" : ""
+      }</span>
+    `;
+  }
+  field.appendChild(createStepOneControl(key));
+  return field;
+};
+
+const syncStepOneUnifiedForm = () => {
+  document
+    .querySelectorAll("[data-step1-proxy-field], [data-step1-extra-field]")
+    .forEach((field) => {
+      if (field === document.activeElement) return;
+      const key =
+        field.getAttribute("data-step1-proxy-field") ||
+        field.getAttribute("data-step1-extra-field");
+      field.value = readStepOneFieldValue(key);
+    });
+  const title = document.querySelector(".step12-project-name-input");
+  if (title && title !== document.activeElement) {
+    title.value = readStepOneFieldValue("name") || "新建建筑设计项目";
+  }
+};
+
+const notifyWorkflowRender = () => {
+  window.dispatchEvent(new Event("archiconcept:workflow-v2-render"));
+};
+
+const renderStepOneProjectHeader = () => {
+  const main = document.querySelector("main:has(#id-section-a)");
+  if (!main) return;
+  const sourceHeader =
+    main.querySelector(".step12-source-input-header") ||
+    main.querySelector(".step12-legacy-input-header:not(#step12-project-hero)");
+
+  let header = document.querySelector("#step12-project-hero");
+  if (!header) {
+    header = document.createElement("section");
+    header.id = "step12-project-hero";
+    header.className = "step12-project-hero";
+    const timeline = main.querySelector('[data-workflow-v2-timeline="true"]');
+    (sourceHeader || timeline || main.firstElementChild)?.before(header);
+  }
+  header.classList.remove("step12-legacy-input-header", "step12-source-input-header");
+
+  if (!header.querySelector(".step12-project-hero-actions")) {
+    header.innerHTML = `
+    <div class="step12-project-hero-copy">
+      <div class="step12-project-title-row">
+        <input class="step12-project-name-input" aria-label="项目名称" value="新建建筑设计项目" />
+        <button type="button" class="step12-project-edit" aria-label="编辑项目名称">✎</button>
+      </div>
+      <div class="step12-project-meta">
+        <span>项目编号：PRJ-20240520-001</span>
+        <span>创建时间：2024-05-20 10:30</span>
+        <span>保存中...</span>
+      </div>
+    </div>
+    <div class="step12-project-hero-actions"></div>
+  `;
+  }
+  const actions = header.querySelector(".step12-project-hero-actions");
+  const title = header.querySelector(".step12-project-name-input");
+  if (title && title !== document.activeElement) {
+    title.value = readStepOneFieldValue("name") || "新建建筑设计项目";
+  }
+  const buttons = [...(sourceHeader?.querySelectorAll("button") || [])].filter(
+    (button) =>
+      /导入任务书|IMPORT BRIEF|使用示例项目|TRY EXAMPLE|清空输入|CLEAR/i.test(
+        button.textContent || ""
+      )
+  );
+  buttons.forEach((button) => actions.appendChild(button));
+  sourceHeader?.classList.add("step12-source-input-header");
+};
+
+const hideStepOneIntroLine = () => {
+  const main = document.querySelector("main:has(#id-section-a)");
+  [...(main?.children || [])]
+    .filter((child) =>
+      /本阶段先确认项目条件/.test(child.textContent || "")
+    )
+    .forEach((child) => child.classList.add("step12-boundary-intro-line"));
+};
+
+const renderStepOneUnifiedForm = () => {
+  const sectionA = document.querySelector("#id-section-a");
+  const sectionB = document.querySelector("#id-section-b");
+  if (!sectionA) return;
+  sectionA.classList.add("step12-legacy-project-section");
+  sectionB?.classList.add("step12-legacy-scale-section");
+
+  let card = document.querySelector("#step12-project-start-card");
+  if (!card) {
+    card = document.createElement("section");
+    card.id = "step12-project-start-card";
+    card.className = "step12-project-start-card";
+    sectionA.before(card);
+    card.innerHTML = `
+      <header class="step12-project-start-header">
+        <span class="step12-project-start-index">A</span>
+        <div>
+          <h2>项目基本信息</h2>
+          <p>填写项目核心信息，为后续设计分析与方案生成提供基础依据。</p>
+        </div>
+      </header>
+      <div class="step12-project-form-section" data-step1-section="base">
+        <h3>基础信息</h3>
+        <div class="step12-project-form-grid"></div>
+      </div>
+      <div class="step12-project-form-section" data-step1-section="scale">
+        <h3>建设规模</h3>
+        <div class="step12-project-form-grid"></div>
+      </div>
+      <div class="step12-project-form-section" data-step1-section="description">
+        <h3>设计说明 / DESCRIPTION</h3>
+        <div class="step12-project-form-grid"></div>
+      </div>
+    `;
+    const baseGrid = card.querySelector(
+      '[data-step1-section="base"] .step12-project-form-grid'
+    );
+    ["name", "type", "nature", "phase", "location", "briefSource"].forEach((key) =>
+      baseGrid.appendChild(createStepOneField(key))
+    );
+    const scaleGrid = card.querySelector(
+      '[data-step1-section="scale"] .step12-project-form-grid'
+    );
+    ["area", "gfa", "far", "height"].forEach((key) =>
+      scaleGrid.appendChild(createStepOneField(key))
+    );
+    card
+      .querySelector('[data-step1-section="description"] .step12-project-form-grid')
+      .appendChild(createStepOneField("description", true));
+  }
+  syncStepOneUnifiedForm();
+};
+
+const resetStepOneUnifiedForm = () => {
+  localStorage.removeItem(STEP1_EXTRA_STORAGE_KEY);
+  ["name", "type", "location", "area", "gfa", "far", "height"].forEach((key) =>
+    setBriefFieldValue(key, "")
+  );
+  syncStepOneUnifiedForm();
+  notifyWorkflowRender();
+  queueRender();
+};
+
+const bindStepOneUnifiedFormEvents = () => {
+  if (document.documentElement.dataset.step12UnifiedProjectEvents === "true") {
+    return;
+  }
+  document.documentElement.dataset.step12UnifiedProjectEvents = "true";
+  const handleFieldChange = (event) => {
+    const title = event.target.closest?.(".step12-project-name-input");
+    const proxy = event.target.closest?.("[data-step1-proxy-field]");
+    const extra = event.target.closest?.("[data-step1-extra-field]");
+    if (title) setBriefFieldValue("name", title.value);
+    if (proxy) setBriefFieldValue(proxy.dataset.step1ProxyField, proxy.value);
+    if (extra) writeStepOneExtraValue(extra.dataset.step1ExtraField, extra.value);
+    if (title || proxy || extra) {
+      syncStepOneUnifiedForm();
+      notifyWorkflowRender();
+      queueRender();
+    }
+  };
+  document.addEventListener("input", handleFieldChange);
+  document.addEventListener("change", handleFieldChange);
+  document.addEventListener("click", (event) => {
+    const edit = event.target.closest?.(".step12-project-edit");
+    if (edit) {
+      const title = document.querySelector(".step12-project-name-input");
+      title?.focus();
+      title?.select();
+      return;
+    }
+    const button = event.target.closest?.("button");
+    if (!button || !/清空输入|CLEAR/i.test(button.textContent || "")) return;
+    setTimeout(resetStepOneUnifiedForm, 0);
+  });
+};
+
 const constraintVisualTarget = (field) => {
   if (field.startsWith("norm:")) {
     return document.querySelector(
@@ -1204,6 +1577,15 @@ const renderBoundarySections = () => {
   const packageData = store.getPackage("boundaryAnchorPackage");
   if (!left || !packageData) return;
 
+  document.querySelector("#boundary-task-brief")?.remove();
+  renderStepOneProjectHeader();
+  hideStepOneIntroLine();
+  renderStepOneUnifiedForm();
+  bindStepOneUnifiedFormEvents();
+  hideStepOneFunctionSection();
+  document.querySelector("#boundary-anchor-review")?.remove();
+  return;
+
   setSectionHeading(
     document.querySelector("#id-section-a"),
     "A",
@@ -1611,7 +1993,8 @@ const applyStepLayout = () => {
   if (!main) return;
   const step = store.getState().currentStep || 1;
   const importButton = [...main.querySelectorAll("button")].find((button) =>
-    /导入任务书/.test(button.textContent || "")
+    /导入任务书/.test(button.textContent || "") &&
+    !button.closest("#step12-project-hero")
   );
   importButton?.parentElement?.parentElement?.classList.add(
     "step12-legacy-input-header"

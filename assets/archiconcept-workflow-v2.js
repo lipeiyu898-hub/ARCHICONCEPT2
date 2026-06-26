@@ -358,6 +358,81 @@ const hasConfirmedRedLine = (data = {}, chain = {}) => {
 const getAreaProgramCount = (data = {}) =>
   Array.isArray(data.areaProgram?.items) ? data.areaProgram.items.length : 0;
 
+const STEP1_PROJECT_REQUIRED_FIELDS = Object.freeze([
+  ["name", "项目名称 / NAME"],
+  ["type", "建筑类型 / TYPE"],
+  ["nature", "项目性质 / NATURE"],
+  ["phase", "项目阶段 / PHASE"],
+  ["location", "项目所在地 / LOCATION"],
+  ["briefSource", "任务来源 / BRIEF SOURCE"],
+  ["area", "用地面积 / SITE AREA"],
+  ["gfa", "总建筑面积 / GFA"]
+]);
+
+const readStepOneProjectValue = (key) => {
+  const visible = document.querySelector(
+    `[data-step1-proxy-field="${key}"], [data-step1-extra-field="${key}"]`
+  );
+  if (visible) return visible.value?.trim() || "";
+  const legacy = document.querySelector(
+    `#id-section-a [name="${key}"], #id-section-b [name="${key}"]`
+  );
+  return legacy?.value?.trim() || "";
+};
+
+const renderProjectInfoSummary = (panel, aside) => {
+  const completed = STEP1_PROJECT_REQUIRED_FIELDS.filter(([key]) =>
+    readStepOneProjectValue(key)
+  ).length;
+  const total = STEP1_PROJECT_REQUIRED_FIELDS.length;
+  const percent = Math.round((completed / total) * 100);
+  const complete = completed === total;
+
+  aside
+    .querySelectorAll(":scope > .sticky, :scope > .assistant-bubble-merged-source")
+    .forEach((element) =>
+      element.classList.add("workflow-v2-hidden-legacy-review")
+    );
+
+  panel.classList.remove("workflow-v2-boundary-summary");
+  panel.classList.add("workflow-v2-project-info-summary");
+  panel.innerHTML = `
+    <div class="workflow-v2-summary-header workflow-v2-project-info-header">
+      <div>
+        <span>阶段状态</span>
+        <strong>项目信息</strong>
+      </div>
+      <span class="workflow-v2-status is-${complete ? "success" : "warning"}">
+        ${complete ? "已完成" : "有必填项未完成"}
+      </span>
+    </div>
+    <section class="workflow-v2-project-next">
+      <span>下一步预览</span>
+      <strong>请完善项目信息后，进入下一步：基地与环境</strong>
+      <p>我们将分析基地条件与周边环境，为方案生成提供依据。</p>
+    </section>
+    <section class="workflow-v2-project-progress">
+      <div>
+        <span>完成进度</span>
+        <strong>${completed}/${total} 项</strong>
+      </div>
+      <div class="workflow-v2-project-progress-track" aria-hidden="true">
+        <i style="width:${percent}%"></i>
+      </div>
+      <em>${percent}%</em>
+    </section>
+    <section class="workflow-v2-project-required">
+      <div class="workflow-v2-summary-section-title">必填项列表</div>
+      <ul>
+        ${STEP1_PROJECT_REQUIRED_FIELDS.map(([key, label]) => {
+          const done = Boolean(readStepOneProjectValue(key));
+          return `<li class="${done ? "is-done" : "is-missing"}"><span></span>${escapeHtml(label)}</li>`;
+        }).join("")}
+      </ul>
+    </section>
+  `;
+};
+
 const renderBoundaryAnchorSummary = (
   panel,
   aside,
@@ -601,17 +676,11 @@ const renderStatusSummary = (chain, step, main) => {
   }
 
   if (step === 1) {
-    renderBoundaryAnchorSummary(
-      panel,
-      aside,
-      summary,
-      chain,
-      boundaryConstraints,
-      confirmedBoundaryCount
-    );
+    renderProjectInfoSummary(panel, aside);
     return;
   }
 
+  panel.classList.remove("workflow-v2-project-info-summary");
   panel.classList.remove("workflow-v2-boundary-summary");
   aside
     .querySelectorAll(":scope > .workflow-v2-hidden-legacy-review")
@@ -652,6 +721,11 @@ const renderStatusSummary = (chain, step, main) => {
 };
 
 const renderStageHeader = (chain, step, main) => {
+  if (step === 1) {
+    main.querySelector(":scope > .workflow-v2-stage-header")?.remove();
+    return;
+  }
+
   const config = getStepConfig(step);
   const state = deriveStepState(chain, step);
   let header = main.querySelector(":scope > .workflow-v2-stage-header");

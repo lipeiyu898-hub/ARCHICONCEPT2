@@ -20,6 +20,7 @@ const introPrompts = [
 const state = {
   root: null,
   intro: null,
+  introDismissed: false,
   launcher: null,
   dialog: null,
   messages: [],
@@ -123,6 +124,7 @@ const hasIntroClosed = () => {
 };
 
 const removeIntro = ({ persist = false } = {}) => {
+  if (persist) state.introDismissed = true;
   if (persist) setIntroClosed();
   state.intro?.remove();
   state.intro = null;
@@ -152,7 +154,7 @@ const ensureLauncher = () => {
   launcher.className = "archi-assistant-launcher";
   launcher.setAttribute("aria-label", "打开 AI 助手");
   launcher.innerHTML = `
-    <img src="${IP_IMAGE_SRC}" alt="" aria-hidden="true" />
+    <img src="${LAY_IP_IMAGE_SRC}" alt="" aria-hidden="true" />
     <span>AI 助手</span>
   `;
   launcher.addEventListener("click", () => openAssistant());
@@ -161,7 +163,7 @@ const ensureLauncher = () => {
 };
 
 const shouldShowIntro = () =>
-  !hasIntroClosed() && Boolean(document.querySelector("#id-section-a"));
+  !state.introDismissed && Boolean(document.querySelector("#id-section-a"));
 
 const renderIntro = () => {
   ensureLauncher();

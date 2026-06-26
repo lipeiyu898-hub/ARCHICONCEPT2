@@ -523,6 +523,128 @@ body:not(.workflow-v2-sidebar-expanded) .workflow-v2-side-footer > small {
   line-height: 1.55;
 }
 
+.workflow-v2-project-info-summary {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.workflow-v2-project-info-header {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.workflow-v2-project-next {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid #e8e8e3;
+  border-radius: 11px;
+  background: #fbfbf9;
+}
+
+.workflow-v2-project-next span,
+.workflow-v2-project-progress span {
+  color: #969690;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.workflow-v2-project-next strong {
+  color: #242422;
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.workflow-v2-project-next p {
+  margin: 0;
+  color: #6f6f69;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.workflow-v2-project-progress {
+  display: grid;
+  gap: 10px;
+}
+
+.workflow-v2-project-progress > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workflow-v2-project-progress strong {
+  color: #1f1f1d;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.workflow-v2-project-progress em {
+  justify-self: end;
+  margin-top: -4px;
+  color: #888882;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.workflow-v2-project-progress-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ececea;
+}
+
+.workflow-v2-project-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #171717;
+}
+
+.workflow-v2-project-required {
+  padding-top: 2px;
+}
+
+.workflow-v2-project-required ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-v2-project-required li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  border-top: 1px solid #f0f0ec;
+  color: #44443f;
+  font-size: 12px;
+  font-weight: 620;
+}
+
+.workflow-v2-project-required li:first-child {
+  border-top: 0;
+}
+
+.workflow-v2-project-required li span {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #d33f35;
+}
+
+.workflow-v2-project-required li.is-done span {
+  background: #171717;
+}
+
 .workflow-v2-hidden-legacy-review {
   display: none !important;
 }
