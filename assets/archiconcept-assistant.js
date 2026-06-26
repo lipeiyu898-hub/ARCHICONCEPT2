@@ -1,6 +1,8 @@
 const INTRO_STORAGE_KEY = "archiconcept_assistant_intro_closed_v2";
+const FLOAT_POSITION_KEY = "archiconcept-ai-float-position";
 const IP_IMAGE_SRC = "/images/assistant-ip.png";
 const LAY_IP_IMAGE_SRC = "/images/assistant-ip-lay.png";
+const LAY_HOVER_IP_IMAGE_SRC = "/images/assistant-ip-lay2.png";
 const MAX_HISTORY = 8;
 
 const quickPrompts = [
@@ -17,15 +19,27 @@ const introPrompts = [
   { label: "打开 AI 助手", prompt: "" }
 ];
 
+const LAUNCHER_IDLE_PROMPT = ".....";
+const LAUNCHER_HOVER_PROMPT = "点我提问";
+const LAUNCHER_DOT_INTERVAL_MS = 1000;
+
 const state = {
   root: null,
   intro: null,
   introDismissed: false,
+  introMode: "collapsed",
+  introCloseTimer: null,
   launcher: null,
   dialog: null,
   messages: [],
   open: false,
-  sending: false
+  sending: false,
+  launcherHovered: false,
+  launcherTypingTimer: null,
+  launcherHoldTimer: null,
+  launcherClickTimer: null,
+  launcherDrag: null,
+  launcherSuppressClick: false
 };
 
 const escapeHtml = (value) =>
@@ -123,15 +137,33 @@ const hasIntroClosed = () => {
   }
 };
 
-const removeIntro = ({ persist = false } = {}) => {
+const removeIntro = ({ persist = false, animate = false } = {}) => {
   if (persist) state.introDismissed = true;
   if (persist) setIntroClosed();
+  window.clearTimeout(state.introCloseTimer);
+  if (animate && state.intro) {
+    state.introMode = "closing";
+    state.intro.classList.remove("ai-prompt-expanded");
+    state.intro.classList.add("ai-prompt-closing");
+    state.launcher?.classList.remove("is-muted-by-intro");
+    state.launcher?.classList.add("ai-prompt-collapsed", "assistant-peek-reveal");
+    state.introCloseTimer = window.setTimeout(() => {
+      state.intro?.remove();
+      state.intro = null;
+      state.introMode = "collapsed";
+      state.launcher?.classList.remove("assistant-peek-reveal");
+      state.launcher?.classList.add("ai-prompt-collapsed");
+    }, 740);
+    return;
+  }
   state.intro?.remove();
   state.intro = null;
-  state.launcher?.classList.remove("is-muted-by-intro");
+  state.introMode = "collapsed";
+  state.launcher?.classList.remove("is-muted-by-intro", "assistant-peek-reveal");
+  state.launcher?.classList.add("ai-prompt-collapsed");
 };
 
-const closeIntro = () => removeIntro({ persist: true });
+const closeIntro = (options = {}) => removeIntro({ persist: true, ...options });
 
 const openAssistant = (prompt = "") => {
   closeIntro();
@@ -144,6 +176,174 @@ const closeAssistant = () => {
   state.open = false;
   state.dialog?.remove();
   state.dialog = null;
+  startLauncherPromptLoop();
+};
+
+const clearLauncherPromptTimers = () => {
+  window.clearTimeout(state.launcherTypingTimer);
+  window.clearTimeout(state.launcherHoldTimer);
+};
+
+const setLauncherImage = (src) => {
+  const image = state.launcher?.querySelector("img");
+  if (image && image.getAttribute("src") !== src) image.setAttribute("src", src);
+};
+
+const typeLauncherPrompt = (index = 1) => {
+  if (!state.launcher || state.launcherHovered) return;
+  const label = state.launcher.querySelector("[data-launcher-label]");
+  if (!label) return;
+  label.classList.remove("is-fading");
+  label.textContent = LAUNCHER_IDLE_PROMPT.slice(0, index);
+  const nextIndex = index >= LAUNCHER_IDLE_PROMPT.length ? 1 : index + 1;
+  state.launcherTypingTimer = window.setTimeout(
+    () => typeLauncherPrompt(nextIndex),
+    LAUNCHER_DOT_INTERVAL_MS
+  );
+};
+
+function startLauncherPromptLoop() {
+  if (!state.launcher || state.launcherHovered) return;
+  clearLauncherPromptTimers();
+  setLauncherImage(LAY_IP_IMAGE_SRC);
+  typeLauncherPrompt(1);
+}
+
+const showLauncherHoverPrompt = () => {
+  state.launcherHovered = true;
+  clearLauncherPromptTimers();
+  state.launcher?.classList.add("is-hovering");
+  setLauncherImage(LAY_HOVER_IP_IMAGE_SRC);
+  const label = state.launcher?.querySelector("[data-launcher-label]");
+  if (label) {
+    label.classList.remove("is-fading");
+    label.textContent = LAUNCHER_HOVER_PROMPT;
+  }
+};
+
+const resumeLauncherPrompt = () => {
+  state.launcherHovered = false;
+  state.launcher?.classList.remove("is-hovering");
+  startLauncherPromptLoop();
+};
+
+const isAssistantEntryPage = () => Boolean(document.querySelector("#id-section-a"));
+
+const getClampedLauncherPosition = (left, top) => {
+  const launcher = state.launcher;
+  const width = launcher?.offsetWidth || 92;
+  const height = launcher?.offsetHeight || 104;
+  const minLeft = 16;
+  const minTop = 16;
+  const maxLeft = Math.max(minLeft, window.innerWidth - width - 16);
+  const maxTop = Math.max(minTop, window.innerHeight - height - 80);
+  return {
+    left: Math.min(Math.max(left, minLeft), maxLeft),
+    top: Math.min(Math.max(top, minTop), maxTop)
+  };
+};
+
+const applyLauncherPosition = (position) => {
+  if (!state.launcher || !position) return;
+  const clamped = getClampedLauncherPosition(position.left, position.top);
+  state.launcher.style.left = `${clamped.left}px`;
+  state.launcher.style.top = `${clamped.top}px`;
+  state.launcher.style.right = "auto";
+  state.launcher.style.bottom = "auto";
+};
+
+const saveLauncherPosition = (position) => {
+  try {
+    window.localStorage.setItem(FLOAT_POSITION_KEY, JSON.stringify(position));
+  } catch {}
+};
+
+const restoreLauncherPosition = () => {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(FLOAT_POSITION_KEY) || "null");
+    if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+      const position = getClampedLauncherPosition(saved.left, saved.top);
+      applyLauncherPosition(position);
+      saveLauncherPosition(position);
+    }
+  } catch {}
+};
+
+const resetLauncherPosition = () => {
+  window.clearTimeout(state.launcherClickTimer);
+  state.launcherClickTimer = null;
+  if (!state.launcher) return;
+  state.launcher.style.left = "";
+  state.launcher.style.top = "";
+  state.launcher.style.right = "";
+  state.launcher.style.bottom = "";
+  try {
+    window.localStorage.removeItem(FLOAT_POSITION_KEY);
+  } catch {}
+};
+
+const onLauncherPointerDown = (event) => {
+  if (event.button !== undefined && event.button !== 0) return;
+  const rect = state.launcher.getBoundingClientRect();
+  state.launcherDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    left: rect.left,
+    top: rect.top,
+    moved: false
+  };
+  state.launcherSuppressClick = false;
+  state.launcher.classList.add("is-dragging");
+  state.launcher.setPointerCapture?.(event.pointerId);
+};
+
+const onLauncherPointerMove = (event) => {
+  const drag = state.launcherDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  const deltaX = event.clientX - drag.startX;
+  const deltaY = event.clientY - drag.startY;
+  if (!drag.moved && Math.hypot(deltaX, deltaY) <= 6) return;
+  drag.moved = true;
+  state.launcherSuppressClick = true;
+  applyLauncherPosition({
+    left: drag.left + deltaX,
+    top: drag.top + deltaY
+  });
+};
+
+const onLauncherPointerUp = (event) => {
+  const drag = state.launcherDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  state.launcher.releasePointerCapture?.(event.pointerId);
+  state.launcher.classList.remove("is-dragging");
+  state.launcherDrag = null;
+  if (!drag.moved) return;
+  const rect = state.launcher.getBoundingClientRect();
+  const position = getClampedLauncherPosition(rect.left, rect.top);
+  applyLauncherPosition(position);
+  saveLauncherPosition(position);
+};
+
+const openAssistantFromLauncher = (event) => {
+  if (state.launcherSuppressClick) {
+    event.preventDefault();
+    state.launcherSuppressClick = false;
+    return;
+  }
+  if (event.detail > 1) return;
+  window.clearTimeout(state.launcherClickTimer);
+  state.launcherClickTimer = window.setTimeout(() => openAssistant(), 220);
+};
+
+const removeLauncher = () => {
+  clearLauncherPromptTimers();
+  window.clearTimeout(state.launcherClickTimer);
+  state.launcher?.remove();
+  state.launcher = null;
+  state.launcherHovered = false;
+  state.launcherDrag = null;
+  state.launcherSuppressClick = false;
 };
 
 const ensureLauncher = () => {
@@ -151,19 +351,28 @@ const ensureLauncher = () => {
   ensureRoot();
   const launcher = document.createElement("button");
   launcher.type = "button";
-  launcher.className = "archi-assistant-launcher";
+  launcher.className = "archi-assistant-launcher ai-prompt-collapsed";
   launcher.setAttribute("aria-label", "打开 AI 助手");
   launcher.innerHTML = `
-    <img src="${LAY_IP_IMAGE_SRC}" alt="" aria-hidden="true" />
-    <span>AI 助手</span>
+    <img src="${LAY_IP_IMAGE_SRC}" alt="" aria-hidden="true" draggable="false" />
+    <span data-launcher-label></span>
   `;
-  launcher.addEventListener("click", () => openAssistant());
+  launcher.addEventListener("pointerdown", onLauncherPointerDown);
+  launcher.addEventListener("pointermove", onLauncherPointerMove);
+  launcher.addEventListener("pointerup", onLauncherPointerUp);
+  launcher.addEventListener("pointercancel", onLauncherPointerUp);
+  launcher.addEventListener("click", openAssistantFromLauncher);
+  launcher.addEventListener("dblclick", resetLauncherPosition);
+  launcher.addEventListener("mouseenter", showLauncherHoverPrompt);
+  launcher.addEventListener("mouseleave", resumeLauncherPrompt);
   state.root.appendChild(launcher);
   state.launcher = launcher;
+  restoreLauncherPosition();
+  startLauncherPromptLoop();
 };
 
 const shouldShowIntro = () =>
-  !state.introDismissed && Boolean(document.querySelector("#id-section-a"));
+  !state.introDismissed && isAssistantEntryPage();
 
 const renderIntro = () => {
   ensureLauncher();
@@ -174,7 +383,7 @@ const renderIntro = () => {
   if (state.intro) return;
 
   const intro = document.createElement("section");
-  intro.className = "archi-assistant-intro";
+  intro.className = "archi-assistant-intro ai-prompt-expanded";
   intro.setAttribute("aria-label", "ARCHICONCEPT AI 助手引导");
   intro.innerHTML = `
     <div class="archi-assistant-intro-ip">
@@ -198,7 +407,7 @@ const renderIntro = () => {
     const button = event.target.closest("button");
     if (!button) return;
     if (button.classList.contains("archi-assistant-intro-close")) {
-      closeIntro();
+      closeIntro({ animate: true });
       return;
     }
     if (button.dataset.prompt !== undefined) {
@@ -208,7 +417,9 @@ const renderIntro = () => {
 
   state.root.appendChild(intro);
   state.intro = intro;
+  state.introMode = "expanded";
   state.launcher?.classList.add("is-muted-by-intro");
+  state.launcher?.classList.remove("ai-prompt-collapsed", "assistant-peek-reveal");
 };
 
 const renderMessages = () => {
@@ -365,6 +576,11 @@ const renderDialog = () => {
 };
 
 const syncAssistant = () => {
+  if (!isAssistantEntryPage()) {
+    if (state.intro) removeIntro();
+    removeLauncher();
+    return;
+  }
   ensureLauncher();
   if (!state.open) renderIntro();
 };
@@ -377,6 +593,13 @@ const startAssistant = () => {
   syncAssistant();
   const observer = new MutationObserver(() => {
     window.requestAnimationFrame(syncAssistant);
+  });
+  window.addEventListener("resize", () => {
+    if (!state.launcher || !state.launcher.style.left) return;
+    const rect = state.launcher.getBoundingClientRect();
+    const position = getClampedLauncherPosition(rect.left, rect.top);
+    applyLauncherPosition(position);
+    saveLauncherPosition(position);
   });
   observer.observe(document.documentElement, {
     childList: true,
