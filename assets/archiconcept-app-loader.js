@@ -1818,6 +1818,36 @@ const DEMO_SITE_PACKAGE = {
 };
 
 window.__ARCHICONCEPT_DEMO_SITE_PACKAGE__ = DEMO_SITE_PACKAGE;
+window.__ARCHICONCEPT_STEP1_DEMO_EXTRA__ = {
+  nature: "新建项目",
+  phase: "概念设计",
+  briefSource: "课程设计 / Course Project",
+  description:
+    "本项目拟设计一座融合 AI 数据中心、市民公共活动与城市开放空间的复合建筑，服务对象包括科技企业从业者、周边居民、游客及公共活动人群。项目希望在满足数据中心高效、安全、稳定运行的基础上，引入展览、科普、共享会议、城市客厅、屋顶活动平台等公共功能，使原本封闭的基础设施转化为可被城市感知和参与的公共节点。设计重点在于处理高技术功能与公共开放性的关系，通过地景化屋顶、开放首层、立体步行系统和多层次公共平台，建立建筑、场地与城市之间的连续体验，同时兼顾流线分区、安全边界、环境友好与城市形象展示。"
+};
+
+window.__ARCHICONCEPT_READ_STEP1_EXTRA__ = () => {
+  try {
+    return JSON.parse(localStorage.getItem("archiconcept_step1_project_meta") || "{}");
+  } catch {
+    return {};
+  }
+};
+
+window.__ARCHICONCEPT_SET_STEP1_EXTRA__ = (extra = {}) => {
+  const next = { ...window.__ARCHICONCEPT_READ_STEP1_EXTRA__(), ...extra };
+  localStorage.setItem("archiconcept_step1_project_meta", JSON.stringify(next));
+  requestAnimationFrame(() => {
+    Object.entries(extra).forEach(([key, value]) => {
+      document.querySelectorAll(`[data-step1-extra-field="${CSS.escape(key)}"]`).forEach((field) => {
+        field.value = value;
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    });
+    window.dispatchEvent(new Event("archiconcept:workflow-v2-render"));
+  });
+};
 
 const replaceOnce = (needle, replacement, label) => {
   if (!source.includes(needle)) {
@@ -2097,7 +2127,7 @@ replaceOneOf(
     'Yc=()=>{Vn(ta),E("example"),z("demo"),kn(null),wt("示例数据已载入。确认待处理条件后，可以进入基地与环境。"),N(!1)}',
     'Yc=()=>{Vn(ta),E("example"),z("demo"),kn(null),wt("已载入前海数据中心案例，可开始进行问题识别。"),N(!1)}'
   ],
-  'Yc=()=>{const v=window.__ARCHICONCEPT_DEMO_SITE_PACKAGE__,T={...ta,location:v.location.name,area:"40000",buildableArea:"40000",siteIntelligencePackage:v};Vn(T),Te({...v.location,location:{lng:v.location.lng,lat:v.location.lat}}),U(null),Ot(v.boundary.geometry.map(V=>({...V}))),vn(v.boundary.status),Di(v.boundary.areaM2),_a(v.boundary.perimeterM),Wn(v.entrances.map(V=>({...V}))),It("\\u5df2\\u5b8c\\u6210"),eo(500),Xr("\\u5df2\\u5b8c\\u6210"),Zr(v.surroundings),An([]),Hs(!1),setVisiblePoiLayers({traffic:!0}),window.__ARCHICONCEPT_REDLINE_SOURCE__=v.boundary.source,E("example"),z("demo"),kn(null),wt("\\u793a\\u4f8b\\u6570\\u636e\\u5df2\\u8f7d\\u5165\\u3002\\u786e\\u8ba4\\u5f85\\u5904\\u7406\\u6761\\u4ef6\\u540e\\uff0c\\u53ef\\u4ee5\\u8fdb\\u5165\\u57fa\\u5730\\u4e0e\\u73af\\u5883\\u3002"),N(!1)}',
+  'Yc=()=>{const v=window.__ARCHICONCEPT_DEMO_SITE_PACKAGE__,T=window.__ARCHICONCEPT_STEP1_DEMO_EXTRA__||{},V={...ta,...T,name:"前海 AI 数据中心",type:"工业与基础设施建筑 / Industrial & Infrastructure",location:"前海石公园",area:"40000",gfa:"45000",far:"1.1",height:"30",buildableArea:"40000",siteIntelligencePackage:v};window.__ARCHICONCEPT_SET_STEP1_EXTRA__?.(T),Vn(V),Te({...v.location,name:"前海石公园",location:{lng:v.location.lng,lat:v.location.lat}}),U(null),Ot(v.boundary.geometry.map(q=>({...q}))),vn(v.boundary.status),Di(v.boundary.areaM2),_a(v.boundary.perimeterM),Wn(v.entrances.map(q=>({...q}))),It("\\u5df2\\u5b8c\\u6210"),eo(500),Xr("\\u5df2\\u5b8c\\u6210"),Zr(v.surroundings),An([]),Hs(!1),setVisiblePoiLayers({traffic:!0}),window.__ARCHICONCEPT_REDLINE_SOURCE__=v.boundary.source,E("example"),z("demo"),kn(null),wt("\\u793a\\u4f8b\\u6570\\u636e\\u5df2\\u8f7d\\u5165\\u3002\\u786e\\u8ba4\\u5f85\\u5904\\u7406\\u6761\\u4ef6\\u540e\\uff0c\\u53ef\\u4ee5\\u8fdb\\u5165\\u57fa\\u5730\\u4e0e\\u73af\\u5883\\u3002"),N(!1),setTimeout(()=>window.dispatchEvent(new Event("archiconcept:workflow-v2-render")),0)}',
   "complete example project with site editor data"
 );
 
@@ -2127,7 +2157,7 @@ replaceOnce(
 
 replaceOnce(
   'Ki=()=>{var v,T,V;if(!pn.canProceed){N(!0),pn.missingRequired.length>0?(v=document.getElementById("id-section-a"))==null||v.scrollIntoView({behavior:"smooth",block:"center"}):pn.scaleFieldsCount<2?(T=document.getElementById("id-section-b"))==null||T.scrollIntoView({behavior:"smooth",block:"center"}):pn.taskFieldsCount<1&&((V=document.getElementById("id-section-c"))==null||V.scrollIntoView({behavior:"smooth",block:"center"}));return}let q="manual";R==="demo"?q="example":R==="imported"&&(q="import");const I=In(),X={...je,siteIntelligencePackage:I};a&&a(X,q)},Sn=',
-  'runProblemPreflight=()=>{let v="manual";R==="demo"?v="example":R==="imported"&&(v="import");const T=In(),V=window.__ARCHICONCEPT_BUILD_INPUT_PREFLIGHT__({brief:je,sitePackage:T,locationConfirmed:!!me,boundaryStatus:Ce,entranceCount:Ut.length,contextStatus:Tt}),q=I=>{const X={...je,area:window.__ARCHICONCEPT_SERIALIZE_AREA__(je.area),gfa:window.__ARCHICONCEPT_SERIALIZE_AREA__(je.gfa),buildableArea:window.__ARCHICONCEPT_SERIALIZE_AREA__(je.buildableArea),siteIntelligencePackage:T,validationSkipped:I?V.validationSkipped:{},validationSkippedDetails:I?V.validationSkippedDetails:[]};a&&a(X,v)};if(!V.hasBlocking&&V.warning.length===0&&V.invalid.length===0){q(!1);return}window.__ARCHICONCEPT_SHOW_INPUT_PREFLIGHT__({result:V,onReturn:()=>{N(V.hasBlocking);const I=[...V.blocking,...V.invalid.filter(X=>X.severity==="blocking"),...V.warning][0],X=I&&document.getElementById(I.section||"id-section-a");X&&X.scrollIntoView({behavior:"smooth",block:"center"})},onContinue:()=>q(!0)})},Ki=runProblemPreflight,problemPreflightNavigationEffect=k.useEffect(()=>{const v=()=>runProblemPreflight();return window.addEventListener("archiconcept:request-problem-identification",v),()=>window.removeEventListener("archiconcept:request-problem-identification",v)},[je,me,Ce,Ut.length,Tt,R]),Sn=',
+  'runProblemPreflight=()=>{let v="manual";R==="demo"?v="example":R==="imported"&&(v="import");const T=In(),Vn=window.__ARCHICONCEPT_READ_STEP1_EXTRA__?.()||{},q={...je,...Vn},I=window.__ARCHICONCEPT_BUILD_INPUT_PREFLIGHT__({brief:q,sitePackage:T,locationConfirmed:!!me,boundaryStatus:Ce,entranceCount:Ut.length,contextStatus:Tt}),X=J=>{const Ee={...q,area:window.__ARCHICONCEPT_SERIALIZE_AREA__(q.area),gfa:window.__ARCHICONCEPT_SERIALIZE_AREA__(q.gfa),buildableArea:window.__ARCHICONCEPT_SERIALIZE_AREA__(q.buildableArea),siteIntelligencePackage:T,validationSkipped:J?I.validationSkipped:{},validationSkippedDetails:J?I.validationSkippedDetails:[]};a&&a(Ee,v)};if(!I.hasBlocking&&I.warning.length===0&&I.invalid.length===0){X(!1);return}window.__ARCHICONCEPT_SHOW_INPUT_PREFLIGHT__({result:I,onReturn:()=>{N(I.hasBlocking);const J=[...I.blocking,...I.invalid.filter(Ee=>Ee.severity==="blocking"),...I.warning][0],Ee=J&&document.getElementById(J.section||"id-section-a");Ee&&Ee.scrollIntoView({behavior:"smooth",block:"center"})},onContinue:()=>X(!0)})},Ki=runProblemPreflight,problemPreflightNavigationEffect=k.useEffect(()=>{const v=()=>runProblemPreflight();return window.addEventListener("archiconcept:request-problem-identification",v),()=>window.removeEventListener("archiconcept:request-problem-identification",v)},[je,me,Ce,Ut.length,Tt,R]),Sn=',
   "problem identification preflight"
 );
 

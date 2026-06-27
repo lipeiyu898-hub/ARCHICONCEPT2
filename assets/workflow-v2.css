@@ -649,6 +649,151 @@ body:not(.workflow-v2-sidebar-expanded) .workflow-v2-side-footer > small {
   display: none !important;
 }
 
+.workflow-v2-main[data-workflow-v2-step="1"] {
+  padding-bottom: 48px !important;
+}
+
+.workflow-v2-project-info-summary {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #e5e5e0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(25, 25, 23, 0.04);
+}
+
+.workflow-v2-project-overview,
+.workflow-v2-project-progress,
+.workflow-v2-project-card-actions {
+  padding: 22px;
+}
+
+.workflow-v2-project-overview,
+.workflow-v2-project-progress {
+  border-bottom: 1px solid #ededE9;
+}
+
+.workflow-v2-project-overview header,
+.workflow-v2-project-progress header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.workflow-v2-project-overview h2,
+.workflow-v2-project-progress h2 {
+  margin: 0;
+  color: #181816;
+  font-size: 16px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+
+.workflow-v2-project-overview header button {
+  border: 0;
+  background: transparent;
+  color: #4f67c8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workflow-v2-project-overview dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.workflow-v2-project-overview dl > div {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 16px;
+  align-items: baseline;
+  min-height: 31px;
+}
+
+.workflow-v2-project-overview dt,
+.workflow-v2-project-overview dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.workflow-v2-project-overview dt {
+  color: #888882;
+  font-weight: 560;
+}
+
+.workflow-v2-project-overview dd {
+  color: #22221f;
+  font-weight: 680;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.workflow-v2-project-overview dd.is-empty {
+  color: #9a9a94;
+  font-weight: 560;
+}
+
+.workflow-v2-project-progress header {
+  margin-bottom: 8px;
+}
+
+.workflow-v2-project-progress header strong {
+  color: #1b1b19;
+  font-size: 22px;
+  font-weight: 760;
+  letter-spacing: -0.04em;
+}
+
+.workflow-v2-project-progress p {
+  margin: 0 0 12px;
+  color: #555550;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.workflow-v2-project-progress small {
+  display: block;
+  margin-top: 11px;
+  color: #8a8a84;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.workflow-v2-project-card-actions {
+  display: grid;
+  grid-template-columns: minmax(112px, 0.72fr) minmax(148px, 1fr);
+  gap: 10px;
+}
+
+.workflow-v2-project-card-actions button {
+  min-height: 42px;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.workflow-v2-project-card-actions .is-secondary {
+  border: 1px solid #dfdfda;
+  background: #fff;
+  color: #555550;
+}
+
+.workflow-v2-project-card-actions .is-primary {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+}
+
 .workflow-v2-boundary-summary {
   padding-bottom: 18px;
 }

@@ -433,6 +433,90 @@ const renderProjectInfoSummary = (panel, aside) => {
   `;
 };
 
+const readStepOneProjectMeta = (pattern, fallback) => {
+  const text = [...document.querySelectorAll(".step12-project-meta span")]
+    .map((item) => item.textContent?.trim() || "")
+    .find((item) => pattern.test(item));
+  return text?.replace(/^.*?[：:]\s*/, "") || fallback;
+};
+
+const renderProjectInfoOverviewCard = (panel, aside) => {
+  const completed = STEP1_PROJECT_REQUIRED_FIELDS.filter(([key]) =>
+    readStepOneProjectValue(key)
+  ).length;
+  const total = STEP1_PROJECT_REQUIRED_FIELDS.length;
+  const percent = Math.round((completed / total) * 100);
+  const complete = completed === total;
+  const value = (key) => readStepOneProjectValue(key) || "未填写";
+  const rows = [
+    ["项目名称", value("name")],
+    ["建筑类型", value("type")],
+    ["项目所在地", value("location")],
+    ["用地面积", value("area")],
+    ["总建筑面积", value("gfa")],
+    ["项目阶段", value("phase")],
+    ["创建时间", readStepOneProjectMeta(/创建|鍒涘缓/, "2024-05-20 10:30")],
+    ["最后更新", complete ? "已更新" : "本次会话"]
+  ];
+
+  aside
+    .querySelectorAll(":scope > .sticky, :scope > .assistant-bubble-merged-source")
+    .forEach((element) =>
+      element.classList.add("workflow-v2-hidden-legacy-review")
+    );
+
+  panel.classList.remove("workflow-v2-boundary-summary");
+  panel.classList.add("workflow-v2-project-info-summary");
+  panel.innerHTML = `
+    <section class="workflow-v2-project-overview">
+      <header>
+        <h2>项目信息总览</h2>
+        <button type="button" data-action="edit-overview">编辑</button>
+      </header>
+      <dl>
+        ${rows
+          .map(
+            ([label, rowValue]) => `
+              <div>
+                <dt>${escapeHtml(label)}</dt>
+                <dd class="${rowValue === "未填写" ? "is-empty" : ""}">${escapeHtml(rowValue)}</dd>
+              </div>
+            `
+          )
+          .join("")}
+      </dl>
+    </section>
+    <section class="workflow-v2-project-progress">
+      <header>
+        <h2>当前进度</h2>
+        <strong>${percent}%</strong>
+      </header>
+      <p>步骤 1 / 6 · 项目信息</p>
+      <div class="workflow-v2-project-progress-track" aria-label="Step 1 完成进度">
+        <i style="width:${percent}%"></i>
+      </div>
+      <small>${complete ? "当前页面信息已完成，可以进入下一步" : "请完善项目信息以继续下一步"}</small>
+    </section>
+    <section class="workflow-v2-project-card-actions">
+      <button type="button" class="is-secondary" data-action="save">保存草稿</button>
+      <button type="button" class="is-primary" data-action="next">继续下一步</button>
+    </section>
+  `;
+  panel
+    .querySelector('[data-action="edit-overview"]')
+    ?.addEventListener("click", () =>
+      document
+        .querySelector("#step12-project-start-card")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+    );
+  panel
+    .querySelector('[data-action="save"]')
+    ?.addEventListener("click", saveCurrentDraft);
+  panel
+    .querySelector('[data-action="next"]')
+    ?.addEventListener("click", () => continueFromCurrentStep(1));
+};
+
 const renderBoundaryAnchorSummary = (
   panel,
   aside,
@@ -676,7 +760,7 @@ const renderStatusSummary = (chain, step, main) => {
   }
 
   if (step === 1) {
-    renderProjectInfoSummary(panel, aside);
+    renderProjectInfoOverviewCard(panel, aside);
     return;
   }
 
@@ -1157,6 +1241,10 @@ const continueFromCurrentStep = (step) => {
 };
 
 const renderActionBar = (chain, step) => {
+  if (step === 1) {
+    document.querySelector(".workflow-v2-actionbar")?.remove();
+    return;
+  }
   let bar = document.querySelector(".workflow-v2-actionbar");
   if (!bar) {
     bar = document.createElement("div");
